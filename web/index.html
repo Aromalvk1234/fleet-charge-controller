@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fleet Charge Controller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <header class="top">
+    <div class="brand">
+      <div class="logo"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFC14D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></div>
+      <div>
+        <h1>Fleet Charge Controller</h1>
+        <div class="sub" id="subtitle">Charging yard</div>
+      </div>
+    </div>
+    <div class="top-right">
+      <div>
+        <div class="eyebrow">Scheduling policy</div>
+        <div class="seg-group" id="policySeg" role="group" aria-label="Scheduling policy"></div>
+      </div>
+      <div class="card sumbox" id="summary"></div>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab on" data-tab="yard" role="tab">Yard</button>
+    <button class="tab" data-tab="schedule" role="tab">Bay schedule</button>
+    <button class="tab" data-tab="compare" role="tab">Compare policies</button>
+    <div class="grow"></div>
+    <div class="ctl">
+      <label>Seed <input id="seed" type="number" min="0" max="9999" value="0"></label>
+      <label>Temp °C <input id="temp" type="number" min="-30" max="45" step="1" value="15"></label>
+      <label>Faults <select id="fault"><option value="0">off</option><option value="0.004">0.4% / slot</option><option value="0.01">1% / slot</option></select></label>
+      <button class="btn" id="runBtn">Run simulation</button>
+      <button class="btn ghost" id="notesBtn">Dispatcher <span class="badge" id="recBadge" hidden>0</span></button>
+      <button class="btn ghost" id="weatherBtn">Live weather</button>
+    </div>
+  </nav>
+
+  <!-- shared time control (yard and schedule) -->
+  <div class="card timebar" id="timebar">
+    <button class="play" id="playBtn">Play day</button>
+    <div class="clockbox"><div class="mono clock" id="clock">00:00</div><div class="small" id="daylabel"></div></div>
+    <div class="scrub">
+      <div class="miles" id="miles" aria-hidden="true"></div>
+      <input type="range" id="slider" min="0" max="95" value="36" aria-label="Time of day">
+      <div class="mono ticks"><span>12:00</span><span>18:00</span><span>00:00</span><span>06:00</span><span>12:00</span></div>
+    </div>
+    <div class="jumps" role="group" aria-label="Jump to a moment in the day" id="jumps"></div>
+    <div class="speed"><span class="small">Speed</span>
+      <button class="spd on" data-speed="1">1x</button><button class="spd" data-speed="2">2x</button><button class="spd" data-speed="4">4x</button></div>
+  </div>
+
+  <!-- ===== Yard ===== -->
+  <section id="view-yard" class="view">
+    <div id="recStrip"></div>
+    <div class="kpis" id="kpis"></div>
+
+    <div class="card chartcard">
+      <div class="chart-head"><h2>Site power, solar and price</h2>
+        <div class="legend"><span><i style="background:var(--solar)"></i>Solar</span><span><i style="background:var(--accent)"></i>Charging load</span><span><i class="ln" style="background:var(--ink)"></i>Grid import</span><span><i class="ln" style="background:var(--bad)"></i>Price (right axis)</span><span><i style="background:var(--bad);opacity:.35"></i>Within 30% of the grid limit</span><span><i class="dash"></i>Grid limit</span></div></div>
+      <svg id="siteChart" viewBox="0 0 1400 170" role="img" aria-label="Solar, charging load, grid import and price across the day"></svg>
+    </div>
+
+    <div class="filters" role="group" aria-label="Highlight trucks">
+      <span class="b small">Highlight</span>
+      <button class="chipbtn on" data-filter="all">All trucks</button>
+      <button class="chipbtn" data-filter="risk">At risk of missing departure <span class="badge" id="riskCount">0</span></button>
+      <button class="chipbtn" data-filter="high">Above 80% charge <span class="badge" id="highCount">0</span></button>
+      <div class="grow"></div>
+      <div class="legend wide-inline">
+        <span><i style="background:var(--warn-fill)"></i>Charging: trailer fill is the battery level</span>
+        <span><i style="background:var(--slate)"></i>Waiting or plugging in</span>
+        <span><i style="background:var(--good-fill)"></i>Ready</span>
+        <span><i class="dash"></i>Charge the trip needs, with margin and reserve</span>
+      </div>
+    </div>
+
+    <div id="pools"></div>
+  </section>
+
+  <!-- ===== Schedule ===== -->
+  <section id="view-schedule" class="view" hidden>
+    <div class="card chartcard">
+      <div class="chart-head"><h2>Site power at the same moment</h2><span class="small">The vertical line follows the time control above and the schedule below.</span></div>
+      <svg id="siteChart2" viewBox="0 0 1400 170" role="img" aria-label="Site power across the day"></svg>
+    </div>
+    <div class="card pad">
+      <div class="chart-head"><h2>Who holds which bay, and when</h2>
+        <div class="legend"><span><i style="background:var(--c-van)"></i>Van bays</span><span><i style="background:var(--c-reg)"></i>Regional bays</span><span><i style="background:var(--c-long)"></i>Long-haul bays</span></div></div>
+      <div class="scroll"><svg id="gantt" viewBox="0 0 1400 400" role="img" aria-label="Bay occupancy over the day"></svg></div>
+      <p class="small">Each bar is one bay visit, from plug-in to the end of unplug. Hover a bar for arrival charge, target, power and deadline; select it to open the truck.</p>
+    </div>
+    <div class="card pad">
+      <div class="chart-head"><h2>Trucks waiting for a bay</h2>
+        <div class="legend"><span><i style="background:var(--c-fcfs)"></i>First come, first served</span><span><i style="background:var(--c-smart)"></i>Selected policy</span></div></div>
+      <div class="three" id="queues"></div>
+    </div>
+  </section>
+
+  <!-- ===== Compare ===== -->
+  <section id="view-compare" class="view" hidden>
+    <div class="card pad"><div class="chart-head"><h2>Daily cost by policy</h2>
+      <div class="legend"><span><i style="background:var(--accent)"></i>Energy</span><span><i style="background:var(--warn-fill)"></i>Demand charge</span><span><i style="background:var(--good-fill)"></i>Battery wear</span></div></div>
+      <svg id="costChart" viewBox="0 0 1400 250" role="img" aria-label="Daily cost by policy"></svg></div>
+    <div class="card pad">
+      <div class="chart-head"><h2>What it does to the batteries</h2><span class="small">Lower is gentler. Slow charging and finishing just before departure keep packs cooler and out of the high-charge zone.</span></div>
+      <div id="stress"></div>
+    </div>
+    <div class="card pad scroll"><table id="cmpTable"></table></div>
+    <p class="small">"Ideal" gives every truck its own charger and no handling delays. It is a bound, not an achievable policy.</p>
+  </section>
+</div>
+
+<!-- ===== Drawers ===== -->
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="truckDrawer" hidden aria-label="Truck detail"></aside>
+<aside class="drawer narrow" id="notesDrawer" hidden aria-label="Dispatcher">
+  <div class="dh"><h2>Dispatcher</h2><button class="x" data-close>Close</button></div>
+
+  <h3>Recommended actions</h3>
+  <div id="recList"></div>
+
+  <h3>Quick scenarios</h3>
+  <p class="small">Each one changes the day and re-plans it.</p>
+  <div class="presets">
+    <button class="preset" data-preset="curtail"><b>Grid curtailment alert</b><span>Site import limit drops to 900 kW</span></button>
+    <button class="preset" data-preset="cold"><b>Cold snap, −10 °C</b><span>Every trip needs more energy</span></button>
+    <button class="preset" data-preset="routes"><b>3-hour route extension</b><span>Regional tractors drive about 180 km further</span></button>
+    <button class="preset" data-preset="reset"><b>Reset scenario</b><span>Back to the original day</span></button>
+  </div>
+
+  <h3>Dispatcher notes</h3>
+  <p class="small">Plain language: route changes, cargo weights, delays, charger faults. Nemotron turns the notes into actions; the energy model recomputes what each truck needs.</p>
+  <textarea id="notesText" rows="5" aria-label="Dispatcher notes">Truck 7 delayed 2 hours. Truck 30 route is now 280 km. Truck 5 is carrying 1.6 tonnes of cargo. Truck 3 charger fault.</textarea>
+  <div class="row"><button class="btn" id="notesApply">Apply and re-plan</button><span class="small" id="notesSrc"></span></div>
+  <div id="notesOut"></div>
+  <h3>Recent changes</h3><ul id="logList" class="small"></ul>
+</aside>
+
+<div class="tip" id="tip" hidden></div>
+<div class="overlay" id="overlay" hidden><div class="card boxed"><div class="spinner"></div><div id="ovTitle" class="b">Simulating the depot day</div><div class="small" id="ovLabel"></div><div class="bar"><i id="ovBar"></i></div></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>

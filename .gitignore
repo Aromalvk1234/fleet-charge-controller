@@ -1,0 +1,9 @@
+﻿__pycache__/
+*.pyc
+.env
+.venv/
+.pytest_cache/
+doc.pdf
+results/*
+!results/benchmark.csv
+!results/stress.csv

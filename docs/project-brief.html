@@ -1,0 +1,852 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><title>Fleet Charge Controller Brief</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* Layout: sticky contents rail beside a reading column; wide figures break out of the column.
+   Palette: ink-blue ground, one blue accent, semantic green/amber/slate/red from the yard UI. */
+:root{
+  --bg:#F4F6FA; --surface:#FFFFFF; --surface2:#EAEFF6; --fg:#0F1B2D; --muted:#4A5B76; --line:#D3DBE7;
+  --accent:#1F4FE0; --accent-soft:#E3EAFE;
+  --good:#12805C; --good-fill:#1FA971; --warn:#8A5A00; --warn-fill:#F5A400; --slate:#8FA3C0; --bad:#B3261E;
+  --c-fcfs:#D9622B; --c-edf:#7A6CC0; --c-smart:#12906A; --c-ideal:#8A94A6;
+  --solar:#F2C14E; --code-bg:#EEF2F8;
+  --f-display:'Bricolage Grotesque','IBM Plex Sans',system-ui,sans-serif;
+  --f-body:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0C1422; --surface:#131E31; --surface2:#1A2740; --fg:#E6ECF6; --muted:#9FB0CA; --line:#26354F;
+  --accent:#7DA2FF; --accent-soft:#1B2B52;
+  --good:#4FD3A1; --good-fill:#1FA971; --warn:#F5B93D; --warn-fill:#F5A400; --slate:#6F85A8; --bad:#FF8A80;
+  --c-fcfs:#F08A55; --c-edf:#A99BE8; --c-smart:#3FD6A5; --c-ideal:#8A94A6; --solar:#C9A23C; --code-bg:#101B2E; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0C1422; --surface:#131E31; --surface2:#1A2740; --fg:#E6ECF6; --muted:#9FB0CA; --line:#26354F;
+  --accent:#7DA2FF; --accent-soft:#1B2B52;
+  --good:#4FD3A1; --good-fill:#1FA971; --warn:#F5B93D; --warn-fill:#F5A400; --slate:#6F85A8; --bad:#FF8A80;
+  --c-fcfs:#F08A55; --c-edf:#A99BE8; --c-smart:#3FD6A5; --c-ideal:#8A94A6; --solar:#C9A23C; --code-bg:#101B2E; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.6;padding-inline:20px;padding-block:28px 80px}
+.wrap{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:230px minmax(0,1fr);gap:48px}
+nav.toc{position:sticky;top:calc(env(safe-area-inset-top,0px) + 20px);align-self:start;font-size:13px;max-height:calc(100vh - 40px);overflow:auto;padding-right:6px}
+nav.toc .t{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+nav.toc a{display:block;padding:5px 0;color:var(--muted);text-decoration:none;border-bottom:1px solid transparent}
+nav.toc a:hover{color:var(--accent)}
+main{min-width:0}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;line-height:1.15;letter-spacing:-.01em}
+h1{font-size:clamp(2rem,5vw,3.1rem);margin:0 0 14px;font-weight:700}
+h2{font-size:1.85rem;margin:72px 0 6px;font-weight:700;scroll-margin-top:20px}
+h3{font-size:1.2rem;margin:34px 0 4px;font-weight:700}
+p{margin:12px 0;max-width:70ch}
+.lede{font-size:1.15rem;color:var(--muted);max-width:62ch}
+.sec-tag{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-top:72px}
+.sec-tag + h2{margin-top:4px}
+ul,ol{padding-left:1.2em;max-width:70ch}li{margin:5px 0}
+a{color:var(--accent)}
+code{font-family:var(--f-mono);font-size:.88em;background:var(--code-bg);padding:1px 6px;border-radius:5px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:26px 0}
+.kpi .n{font-family:var(--f-display);font-size:2rem;font-weight:700;line-height:1.1}
+.kpi .l{font-size:13px;color:var(--muted);margin-top:4px}
+.good{color:var(--good)}
+.note{border:1px solid var(--line);background:var(--surface2);border-radius:10px;padding:12px 16px;margin:18px 0;max-width:72ch;font-size:15px}
+.note b{font-family:var(--f-mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--warn);display:block;margin-bottom:3px}
+.eq{margin:18px 0;padding:14px 18px;background:var(--surface);border:1px solid var(--line);border-radius:10px;font-family:'IBM Plex Sans',serif;font-size:1.08rem;overflow-x:auto;max-width:100%}
+.eq .row{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;padding:3px 0}
+.eq .tag{margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.eq var{font-style:italic;font-family:'IBM Plex Sans',serif}
+.eq sub,.eq sup{font-size:.7em;line-height:0}
+.frac{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;margin:0 3px}
+.frac>span:first-child{border-bottom:1px solid currentColor;padding:0 4px}
+.frac>span:last-child{padding:0 4px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--f-mono)}
+.scroll{overflow-x:auto;max-width:100%}
+.tbl{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px 8px;margin:18px 0}
+figure{margin:28px 0}
+figure .fig{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;overflow-x:auto}
+figure svg{display:block;width:100%;height:auto;min-width:560px}
+figcaption{font-size:13.5px;color:var(--muted);margin-top:8px;max-width:78ch}
+figcaption b{color:var(--fg)}
+.nd{fill:var(--surface);stroke:var(--fg);stroke-width:1.4}
+.nd-a{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.nd-g{fill:color-mix(in srgb,var(--good-fill) 18%,var(--surface));stroke:var(--good);stroke-width:1.6}
+.nd-w{fill:color-mix(in srgb,var(--warn-fill) 22%,var(--surface));stroke:var(--warn);stroke-width:1.6}
+.nd-s{fill:color-mix(in srgb,var(--slate) 22%,var(--surface));stroke:var(--muted);stroke-width:1.4}
+.nd-r{fill:color-mix(in srgb,var(--bad) 14%,var(--surface));stroke:var(--bad);stroke-width:1.6}
+svg text{fill:var(--fg);font-family:var(--f-body);font-size:12.5px}
+svg .m{fill:var(--muted)}svg .mono{font-family:var(--f-mono);font-size:11px}svg .b{font-weight:600}
+svg .ln{stroke:var(--fg);stroke-width:1.5;fill:none}svg .lnm{stroke:var(--muted);stroke-width:1.2;fill:none}
+svg .grid{stroke:var(--line);stroke-width:1}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;margin:6px 2px 10px;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.pill{display:inline-block;font-family:var(--f-mono);font-size:11px;padding:2px 8px;border-radius:99px;background:var(--surface2);border:1px solid var(--line);color:var(--muted)}
+hr{border:0;border-top:1px solid var(--line);margin:40px 0}
+@media (max-width:900px){
+  .wrap{grid-template-columns:minmax(0,1fr);gap:0}
+  nav.toc{position:static;max-height:none;margin-bottom:24px;columns:2;column-gap:20px}
+  h2{margin-top:56px}
+}
+
+@page{size:A4;margin:14mm 13mm 17mm}
+@media print{
+  :root:root:root{
+    --bg:#FFFFFF; --surface:#FFFFFF; --surface2:#F1F4F9; --fg:#0F1B2D; --muted:#4A5B76; --line:#CBD4E1;
+    --accent:#1F4FE0; --accent-soft:#E3EAFE; --good:#12805C; --good-fill:#1FA971; --warn:#8A5A00; --warn-fill:#F5A400;
+    --slate:#8FA3C0; --bad:#B3261E; --c-fcfs:#D9622B; --c-edf:#7A6CC0; --c-smart:#12906A; --c-ideal:#8A94A6;
+    --solar:#F2C14E; --code-bg:#EEF2F8; color-scheme:light}
+  html,body{background:#fff}
+  body{padding:0;font-size:10pt;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .wrap{display:block;max-width:none}
+  main{max-width:none}
+  nav.toc{position:static;max-height:none;overflow:visible;columns:3;column-gap:20px;border:1px solid var(--line);border-radius:8px;padding:10px 16px;margin:0 0 20px;break-inside:avoid;font-size:9pt}
+  nav.toc a{padding:3px 0;color:var(--fg)}
+  h1{font-size:28pt;margin-bottom:10px}
+  h2{font-size:17pt;margin:0 0 4px;break-after:avoid}
+  h3{font-size:12pt;margin:16px 0 3px;break-after:avoid}
+  .sec-tag{margin-top:30px;break-after:avoid}
+  p,li{orphans:3;widows:3}
+  p,ul,ol,.note{max-width:none}
+  .lede{font-size:12pt}
+  .kpis{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:18px 0}
+  .kpi .n{font-size:15pt}
+  .card,.note,.eq,figure,tr,.legend{break-inside:avoid}
+  .eq{overflow:visible;font-size:10pt;padding:10px 14px}
+  .eq .tag{font-size:8pt}
+  .scroll,.fig,.tbl{overflow:visible !important}
+  .fig{padding:10px}
+  figure{margin:18px 0}
+  figure svg{min-width:0 !important}
+  figcaption{font-size:9pt}
+  table{font-size:8.6pt}
+  th,td{padding:4px 6px}
+  th{font-size:7.5pt}
+  thead{display:table-header-group}
+  .tbl{padding:2px 4px;margin:12px 0}
+  #queues{grid-template-columns:1fr 1fr}
+  #queues svg:last-child{grid-column:1/-1;max-width:60%}
+  a{color:inherit;text-decoration:none}
+  .legend{font-size:8.5pt}
+  code{font-size:.85em}
+  pre,.card[style*="white-space:pre"]{white-space:pre-wrap !important;overflow:visible !important}
+}
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <div class="t">Contents</div>
+  <a href="#summary">Summary</a><a href="#problem">1 · The problem</a><a href="#fleet">2 · Fleet and site</a><a href="#arch">3 · Architecture</a>
+  <a href="#energy">4 · Trip energy model</a><a href="#telemetry">5 · SOC and SOH telemetry</a><a href="#charge">6 · Charging physics</a>
+  <a href="#health">7 · Battery health</a><a href="#lp">8 · Power planner (LP)</a><a href="#sched">9 · Bay scheduler</a>
+  <a href="#sim">10 · Yard simulator</a><a href="#agent">11 · Nemotron and Tavily</a><a href="#results">12 · Results</a>
+  <a href="#ui">13 · Interfaces</a><a href="#tests">14 · Testing</a><a href="#limits">15 · Limits</a>
+  <a href="#hack">16 · Hackathon fit</a><a href="#repo">17 · Repository</a><a href="#params">Appendix · Parameters</a>
+</nav>
+
+<main>
+<header id="summary">
+  <div class="pill">Nebius x NVIDIA Global AI Hackathon · Physical AI track · simulated depot</div>
+  <h1 style="margin-top:14px">Fleet Charge Controller</h1>
+  <p class="lede">A scheduler and edge-control system that charges a 50-truck electric depot through 11 shared bays. Each truck gets exactly the energy its trip needs, at the gentlest and cheapest rate that still gets it to the gate before dispatch.</p>
+
+  <div class="kpis" id="kpis"></div>
+
+  <p>This brief documents the whole project: the problem, the models, the math, the scheduler, the simulator, the language-model layer, the measured results, and what is still missing. Every number in the charts and tables comes from the project's own simulator, run from the code in the repository. Figures marked <i>synthetic</i> use generated prices, solar, arrivals and trips.</p>
+
+  <div class="note"><b>How to read the results</b>Costs are for one simulated day of a 50-truck depot under a made-up but plausible tariff. They show how the policies rank against each other. They are not a forecast of any real site's bill.</div>
+</header>
+
+<!-- 1 -->
+<div class="sec-tag" id="problem-tag">1 · Requirements</div>
+<h2 id="problem">The problem</h2>
+<p>A depot operator has trucks that return at different times, must leave at different times, and need different amounts of energy for the next trip. Electricity costs change through the day. Solar panels give free energy at midday. Chargers are scarce: there are fewer bays than trucks, and a Ford E-Transit cannot use a bay built for a Mercedes eActros. Fast charging is cheap in time and bad for the battery.</p>
+<p>The controller has to answer four questions continuously:</p>
+<ol>
+  <li><b>How much</b> energy does each truck need? It depends on distance, cargo weight, terrain, temperature, the battery's age, and a safety buffer.</li>
+  <li><b>Which truck</b> takes which bay, and when? Trucks wait in a lot for a bay of their own model.</li>
+  <li><b>How fast</b> should each truck charge? Slowly when there is slack, so it costs less and wears the battery less. Quickly when the deadline is close.</li>
+  <li><b>Is everyone ready</b> at dispatch time, with the connector off, the truck at the gate and a margin to spare?</li>
+</ol>
+<div class="tbl scroll"><table>
+<thead><tr><th>Requirement</th><th>Where it lives</th></tr></thead>
+<tbody>
+<tr><td>Dynamic pricing</td><td>Price per slot enters the planner's objective (§8)</td></tr>
+<tr><td>On-site solar</td><td>Solar forecast offsets grid import in the site balance; realised solar differs from the forecast and the edge loop corrects (§8, §10)</td></tr>
+<tr><td>Different arrival times</td><td>Each truck's release slot; queues form when bays are full (§9)</td></tr>
+<tr><td>Different dispatch times</td><td>Each truck's deadline, with a 15-minute dispatch buffer (§9)</td></tr>
+<tr><td>Charge only what the journey needs, plus a buffer</td><td>Physics energy model with margin and reserve (§4)</td></tr>
+<tr><td>Cargo weight and distance</td><td>Mass and distance terms in the energy model (§4)</td></tr>
+<tr><td>Battery health</td><td>Charge gently, avoid sitting at high SOC; SOH changes the usable capacity and the power limit (§5, §7)</td></tr>
+<tr><td>Fewer bays than trucks, separate pools per model</td><td>Bay scheduler (§9)</td></tr>
+<tr><td>Delays moving into a bay and out to dispatch</td><td>Plug-in and unplug overhead in the schedule and in the simulator (§9, §10)</td></tr>
+<tr><td>Trucks report SOC and SOH</td><td>Noisy telemetry the controller plans from (§5)</td></tr>
+</tbody></table></div>
+
+<!-- 2 -->
+<div class="sec-tag">2 · Inputs</div>
+<h2 id="fleet">Fleet and site</h2>
+<p>The fleet uses three real truck models. Battery, range and charging figures come from public manufacturer and press sources (checked October 2026). Mass, drag and drivetrain values are engineering estimates for the energy model, and the model is then calibrated to the published range (§4).</p>
+<div class="tbl scroll"><table>
+<thead><tr><th>Model</th><th class="num">Count</th><th class="num">Battery (usable)</th><th class="num">Rated range</th><th class="num">Charging</th><th class="num">Bays</th><th class="num">Depot charger</th></tr></thead>
+<tbody>
+<tr><td>Ford E-Transit (2025)</td><td class="num">28</td><td class="num">89 kWh</td><td class="num">143–159 mi</td><td class="num">19.2 kW AC (DC up to 176 kW)</td><td class="num">6</td><td class="num">19.2 kW</td></tr>
+<tr><td>Volvo VNR Electric</td><td class="num">14</td><td class="num">565 installed, ~452 usable</td><td class="num">up to 275 mi</td><td class="num">250 kW CCS1</td><td class="num">3</td><td class="num">150 kW</td></tr>
+<tr><td>Mercedes-Benz eActros 600</td><td class="num">8</td><td class="num">621 installed, ~590 usable</td><td class="num">500 km</td><td class="num">up to 400 kW CCS2</td><td class="num">2</td><td class="num">180 kW</td></tr>
+</tbody></table></div>
+<p>Sources: <a href="https://www.autoblog.com/cars/ford/e-transit/2025">Autoblog on the 2025 E-Transit</a>, <a href="https://insideevs.com/news/562100/volvo-vnr-bigger-battery-range/">InsideEVs on the VNR Electric</a>, <a href="https://insideevs.com/news/691149/mercedes-eactros-truck-reveal-range-battery-specs/">InsideEVs on the eActros 600</a>.</p>
+<h3>The site</h3>
+<ul>
+  <li>Grid import limit 1,500 kW; solar peak 900 kW; charger efficiency 93 % (grid kWh to battery kWh).</li>
+  <li>Price: a time-of-use base (0.09 $/kWh overnight, 0.14 daytime, 0.32 from 16:00 to 21:00) with hourly noise and one real-time spike of 1.8x in the evening peak.</li>
+  <li>Demand charge: 0.55 $ per kW of the day's peak grid import, a prorated monthly tariff.</li>
+  <li>The day runs from 12:00 to 12:00 in 96 slots of 15 minutes. Arrivals are 12:30–22:30 (peak about 17:30); departures are 04:30–12:00 next day. About 18 % of vans make a same-day short turn.</li>
+</ul>
+<h3>The fleet's spread</h3>
+<p>Every truck has its own random arrival SOC (15–45 %), its own true SOH (82–100 %), cargo between 15 % and 100 % of the model's maximum payload, terrain between 1 and 8 m of climb per km, and a priority (15 % of trucks count double when they miss a target). If a generated trip would need more than 95 % of the battery, the route is shortened by 4 % steps until it fits, as a dispatcher would.</p>
+
+<!-- 3 -->
+<div class="sec-tag">3 · Structure</div>
+<h2 id="arch">Architecture</h2>
+<p>The design rule: <b>language models read and explain, deterministic optimisation decides</b>. Deadlines must hold, so no model sets a power level or picks a bay. The system works on two time scales: a slow planning loop over 15-minute slots and a fast edge loop every minute.</p>
+<figure>
+<div class="fig"><svg viewBox="0 0 980 470" role="img" aria-label="System architecture: inputs feed an agent layer and a two-stage scheduler, which drive edge agents in the yard twin, which report telemetry back">
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+<g style="color:var(--fg)">
+<text class="mono m" x="20" y="22">INPUTS</text>
+<rect class="nd" x="20" y="34" width="170" height="52" rx="8"/><text class="b" x="105" y="57" text-anchor="middle">Price curve</text><text class="m" x="105" y="75" text-anchor="middle">TOU + real-time spike</text>
+<rect class="nd" x="20" y="98" width="170" height="52" rx="8"/><text class="b" x="105" y="121" text-anchor="middle">Solar forecast</text><text class="m" x="105" y="139" text-anchor="middle">realised differs</text>
+<rect class="nd" x="20" y="162" width="170" height="52" rx="8"/><text class="b" x="105" y="185" text-anchor="middle">Dispatch notes</text><text class="m" x="105" y="203" text-anchor="middle">plain-language text</text>
+<rect class="nd" x="20" y="226" width="170" height="52" rx="8"/><text class="b" x="105" y="249" text-anchor="middle">Weather (Tavily)</text><text class="m" x="105" y="267" text-anchor="middle">live temperature</text>
+<rect class="nd" x="20" y="290" width="170" height="52" rx="8"/><text class="b" x="105" y="313" text-anchor="middle">Truck telemetry</text><text class="m" x="105" y="331" text-anchor="middle">SOC every slot, SOH</text>
+
+<text class="mono m" x="250" y="22">AGENT LAYER · NVIDIA NEMOTRON ON NEBIUS</text>
+<rect class="nd-a" x="250" y="34" width="210" height="116" rx="10"/>
+<text class="b" x="355" y="58" text-anchor="middle">Nemotron Nano</text><text class="m" x="355" y="76" text-anchor="middle">notes to validated actions</text><text class="m" x="355" y="92" text-anchor="middle">temperature from search text</text>
+<text class="b" x="355" y="118" text-anchor="middle">Nemotron Super</text><text class="m" x="355" y="136" text-anchor="middle">grounded explanations</text>
+<rect class="nd" x="250" y="170" width="210" height="64" rx="10"/><text class="b" x="355" y="194" text-anchor="middle">Physics energy model</text><text class="m" x="355" y="212" text-anchor="middle">kWh needed per truck</text>
+
+<text class="mono m" x="520" y="22">SLOW LOOP · EVERY EVENT, MIN. EVERY 4 SLOTS</text>
+<rect class="nd-g" x="520" y="34" width="210" height="96" rx="10"/><text class="b" x="625" y="58" text-anchor="middle">Stage 1 · bay sequencing</text><text class="m" x="625" y="76" text-anchor="middle">time-indexed MILP per pool</text><text class="m" x="625" y="92" text-anchor="middle">who takes a bay, and when</text><text class="mono m" x="625" y="114" text-anchor="middle">HiGHS via SciPy</text>
+<rect class="nd-g" x="520" y="148" width="210" height="96" rx="10"/><text class="b" x="625" y="172" text-anchor="middle">Stage 2 · power planner</text><text class="m" x="625" y="190" text-anchor="middle">LP inside each bay window</text><text class="m" x="625" y="206" text-anchor="middle">price, solar, health, peak</text><text class="mono m" x="625" y="228" text-anchor="middle">HiGHS via SciPy</text>
+
+<text class="mono m" x="790" y="22">FAST LOOP · EVERY MINUTE</text>
+<rect class="nd-w" x="790" y="34" width="170" height="210" rx="10"/><text class="b" x="875" y="58" text-anchor="middle">Edge agents (50)</text>
+<text class="m" x="875" y="80" text-anchor="middle">charger rating</text><text class="m" x="875" y="98" text-anchor="middle">SOC taper</text><text class="m" x="875" y="116" text-anchor="middle">thermal derate</text><text class="m" x="875" y="134" text-anchor="middle">deadline-deficit guard</text><text class="m" x="875" y="152" text-anchor="middle">site power cap</text>
+<text class="m" x="875" y="180" text-anchor="middle">plug-in / unplug delays</text><text class="m" x="875" y="198" text-anchor="middle">true SOC / SOH physics</text>
+<text class="mono m" x="875" y="228" text-anchor="middle">simulated hardware</text>
+
+<rect class="nd-s" x="520" y="290" width="440" height="56" rx="10"/><text class="b" x="740" y="314" text-anchor="middle">Yard digital twin</text><text class="m" x="740" y="333" text-anchor="middle">11 bays in 3 pools · waiting lot · ready lane · 1.5 MW grid · 900 kW solar</text>
+
+<rect class="nd" x="250" y="290" width="210" height="56" rx="10"/><text class="b" x="355" y="314" text-anchor="middle">Web interface</text><text class="m" x="355" y="333" text-anchor="middle">yard · schedule · compare</text>
+
+<line class="ln" x1="190" y1="60" x2="518" y2="78" marker-end="url(#ar)"/>
+<line class="ln" x1="190" y1="124" x2="518" y2="190" marker-end="url(#ar)"/>
+<line class="ln" x1="190" y1="188" x2="248" y2="92" marker-end="url(#ar)"/>
+<line class="ln" x1="190" y1="252" x2="248" y2="120" marker-end="url(#ar)"/>
+<line class="ln" x1="460" y1="202" x2="518" y2="100" marker-end="url(#ar)"/>
+<line class="ln" x1="730" y1="82" x2="788" y2="82" marker-end="url(#ar)"/><text class="mono m" x="738" y="74">windows</text>
+<line class="ln" x1="730" y1="196" x2="788" y2="196" marker-end="url(#ar)"/><text class="mono m" x="740" y="188">kW</text>
+<line class="ln" x1="875" y1="246" x2="875" y2="288" marker-end="url(#ar)"/>
+<line class="lnm" x1="190" y1="316" x2="248" y2="316" stroke-dasharray="4 3"/>
+<path class="lnm" d="M520 318 H 470" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+<path class="lnm" d="M640 290 V 262 H 625 V 246" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+<text class="mono m" x="650" y="262">reported SOC, SOH</text>
+<text class="mono m" x="20" y="372">dashed = telemetry going back to the controller</text>
+</g>
+<text class="b" x="20" y="410">Why two loops?</text>
+<text class="m" x="20" y="430">The slow loop decides what should happen over the next hours. The fast loop absorbs what the slow loop cannot foresee:</text>
+<text class="m" x="20" y="448">a cloud over the panels, a truck that charges slower than planned, a connector that takes longer to seat.</text>
+</svg></div>
+<figcaption><b>Figure 1.</b> The controller. Optimisation (green) owns bay assignment and power; Nemotron (blue) owns language; edge agents (amber) own the last-minute safety limits.</figcaption>
+</figure>
+<h3>Why this fits the Physical AI track</h3>
+<p>The track asks for agents that sense and act in the physical world, with serverless jobs used to evaluate policies at scale. This project has a sense-decide-act loop around simulated hardware: telemetry in (SOC, SOH, temperature, plug state), setpoints out (kW per charger, bay assignments), local safety limits at the edge, and a large benchmark of policies run as a batch job. There is no physical hardware yet, so the video will show the key modules in action, as the rules allow.</p>
+
+<!-- 4 -->
+<div class="sec-tag">4 · How much energy</div>
+<h2 id="energy">Trip energy model</h2>
+<p>A flat "kWh per km" ignores the things a dispatcher knows matter: a loaded tractor-trailer burns a lot more than an empty one, a hilly route costs more than a flat one, and cold weather costs a lot on every truck. The model builds the trip's battery energy from physics and then scales it once per truck model so that, at reference conditions, it reproduces the consumption implied by the published range.</p>
+<h3>Forces and losses</h3>
+<div class="eq">
+<div class="row"><span><var>m</var> = <var>m</var><sub>curb</sub> + <var>m</var><sub>payload</sub></span><span class="tag">mass</span></div>
+<div class="row"><span><var>E</var><sub>roll</sub> = <var>C</var><sub>rr</sub> · <var>m</var> · <var>g</var> · <var>d</var></span><span class="tag">rolling resistance</span></div>
+<div class="row"><span><var>E</var><sub>aero</sub> = ½ · <var>ρ</var> · <var>C<sub>d</sub>A</var> · (1.05 <var>v̄</var>)² · <var>d</var></span><span class="tag">aerodynamic drag</span></div>
+<div class="row"><span><var>E</var><sub>prop</sub> = (<var>E</var><sub>roll</sub> + <var>E</var><sub>aero</sub>) / <var>η</var></span><span class="tag">battery to wheel</span></div>
+<div class="row"><span><var>κ</var> = 1/<var>η</var> − <var>η</var> · <var>r</var></span><span class="tag">net cost of one joule of motion energy, with regeneration fraction <var>r</var></span></div>
+<div class="row"><span><var>E</var><sub>stop</sub> = <var>n</var><sub>s</sub> · ½ <var>m</var> <var>v</var><sub>s</sub>² · <var>κ</var>,  <var>n</var><sub>s</sub> = (stops per km) · <var>d</var></span><span class="tag">stop-and-go</span></div>
+<div class="row"><span><var>E</var><sub>climb</sub> = <var>m</var> · <var>g</var> · <var>h</var> · <var>κ</var>,  <var>h</var> = (ascent per km) · <var>d</var></span><span class="tag">climbing, net of descent</span></div>
+<div class="row"><span><var>P</var><sub>hvac</sub> = <var>k</var><sub>h</sub> · max(0, 18 − <var>T</var>) + 0.6 <var>k</var><sub>h</sub> · max(0, <var>T</var> − 24)</span><span class="tag">heating and cooling, <var>T</var> in °C</span></div>
+<div class="row"><span><var>E</var><sub>aux</sub> = (<var>P</var><sub>aux</sub> + <var>P</var><sub>hvac</sub>) · <var>d</var> / <var>v̄</var></span><span class="tag">auxiliaries over the trip time</span></div>
+<div class="row"><span><var>f</var><sub>cold</sub> = 1 + 0.004 · max(0, 15 − <var>T</var>)</span><span class="tag">cold battery and tyres</span></div>
+<div class="row"><span><var>E</var><sub>trip</sub> = <var>c</var> · <var>f</var><sub>cold</sub> · (<var>E</var><sub>prop</sub> + <var>E</var><sub>stop</sub> + <var>E</var><sub>climb</sub>) + <var>E</var><sub>aux</sub></span><span class="tag">battery energy for the round trip</span></div>
+</div>
+<p><var>d</var> is the round-trip distance, <var>v̄</var> the average speed, <var>g</var> = 9.81 m/s², <var>ρ</var> = 1.2 kg/m³. Energies in joules convert to kWh by dividing by 3.6 million.</p>
+<h3>Calibration</h3>
+<p>The constant <var>c</var> is solved per model so that at reference conditions (100 km, half the maximum payload, 3 m/km ascent, 15 °C) the model returns the consumption derived from the published range, <var>ĉ</var> = usable kWh ÷ rated range:</p>
+<div class="eq"><div class="row"><span><var>c</var> = (<var>ĉ</var> · <var>d</var><sub>ref</sub> − <var>E</var><sub>aux,ref</sub>) / (<var>E</var><sub>prop,ref</sub> + <var>E</var><sub>stop,ref</sub> + <var>E</var><sub>climb,ref</sub>)</span></div></div>
+<p>The fitted values are <span id="calvals"></span>. A value near 1 means the physics alone already matches the published range. The van's higher value reflects that its published range is an EPA figure and the 0.45 kWh/km used here is deliberately conservative.</p>
+<h3>Required energy at departure</h3>
+<div class="eq">
+<div class="row"><span><var>C</var><sub>plan</sub> = <var>C</var><sub>nom</sub> · <var>SOH</var><sub>rep</sub></span><span class="tag">usable capacity as the controller sees it</span></div>
+<div class="row"><span><var>E</var><sub>req</sub> = <var>E</var><sub>trip</sub> · (1 + <var>μ</var>) + <var>ρ</var><sub>res</sub> · <var>C</var><sub>plan</sub></span><span class="tag"><var>μ</var> = 15 % margin, <var>ρ</var><sub>res</sub> = 10 % reserve</span></div>
+<div class="row"><span>target SOC = <var>E</var><sub>req</sub> / <var>C</var><sub>plan</sub></span><span class="tag">capped at 95 % by shortening the route</span></div>
+</div>
+<p>The margin covers model error, detours and driving style. The reserve means the truck never gets home empty. Both are policy settings. An older battery has a smaller <var>C</var><sub>plan</sub>, so the same trip needs a higher target SOC.</p>
+<figure>
+<div class="fig"><svg id="fig-breakdown" viewBox="0 0 900 250" role="img" aria-label="Energy requirement breakdown for one loaded regional tractor"></svg></div>
+<figcaption id="cap-breakdown"></figcaption>
+</figure>
+<h3>Sensitivity</h3>
+<p>Consumption in kWh per km for each model as one input changes, others held at reference. Rows come straight from the model.</p>
+<table id="sens"></table>
+
+<!-- 5 -->
+<div class="sec-tag">5 · What the trucks tell the yard</div>
+<h2 id="telemetry">SOC and SOH telemetry</h2>
+<p>The controller never reads a truck's true battery. Each truck reports its state of charge every slot and its state of health once. Both reports are noisy. The physics runs on the true values; the scheduler plans on the reported ones.</p>
+<div class="eq">
+<div class="row"><span><var>SOC</var><sub>rep</sub> = clip( <var>SOC</var> + 𝒩(0, <var>σ</var><sub>s</sub>²), 0, 1 )</span><span class="tag"><var>σ</var><sub>s</sub> = 1 % absolute</span></div>
+<div class="row"><span><var>SOH</var><sub>rep</sub> = <var>SOH</var> + 𝒩(0, <var>σ</var><sub>h</sub>²)</span><span class="tag"><var>σ</var><sub>h</sub> = 1 %, true SOH spread 82–100 %</span></div>
+<div class="row"><span><var>P</var><sub>max</sub>(<var>SOH</var>) = <var>P</var><sub>rated</sub> · (1 − 0.5 · (1 − <var>SOH</var>))</span><span class="tag">older packs accept less power</span></div>
+<div class="row"><span><var>C</var><sub>true</sub> = <var>C</var><sub>nom</sub> · <var>SOH</var></span><span class="tag">physical capacity</span></div>
+</div>
+<p>A 1 % SOC error is 0.9 kWh on a van and 5.9 kWh on an eActros. This is why the planner aims slightly above the target (a 2 % cushion) and why the edge agent checks the true energy every minute and adds power if reality falls behind (§10).</p>
+<figure>
+<div class="fig"><svg viewBox="0 0 900 190" role="img" aria-label="Telemetry loop between truck and controller">
+<defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+<g style="color:var(--fg)">
+<rect class="nd-w" x="20" y="40" width="230" height="110" rx="10"/><text class="b" x="135" y="66" text-anchor="middle">Truck (true state)</text><text class="m" x="135" y="90" text-anchor="middle">SOC, SOH, temperature</text><text class="m" x="135" y="108" text-anchor="middle">physics at 1-minute steps</text><text class="m" x="135" y="126" text-anchor="middle">edge limits and guard</text>
+<rect class="nd-a" x="650" y="40" width="230" height="110" rx="10"/><text class="b" x="765" y="66" text-anchor="middle">Yard controller</text><text class="m" x="765" y="90" text-anchor="middle">plans on reported values</text><text class="m" x="765" y="108" text-anchor="middle">C_plan = C_nom × SOH_rep</text><text class="m" x="765" y="126" text-anchor="middle">replans on events</text>
+<line class="ln" x1="250" y1="70" x2="648" y2="70" marker-end="url(#ar2)"/><text class="m" x="450" y="62" text-anchor="middle">SOC ± 1 %  (each slot) · SOH ± 1 %</text>
+<line class="ln" x1="648" y1="125" x2="252" y2="125" marker-end="url(#ar2)"/><text class="m" x="450" y="143" text-anchor="middle">bay window · power setpoint (kW)</text>
+</g></svg></div>
+<figcaption><b>Figure 2.</b> Reports flow up, setpoints flow down. A real deployment would replace the simulated reports with the vehicle's BMS data over the charging protocol.</figcaption>
+</figure>
+
+<!-- 6 -->
+<div class="sec-tag">6 · Charging</div>
+<h2 id="charge">Charging physics</h2>
+<p>Charging adds energy at the charger's efficiency, limited by the charger rating, the truck's SOH-derated acceptance, and the way batteries slow down near full.</p>
+<div class="eq">
+<div class="row"><span><var>e</var><sub>t+1</sub> = <var>e</var><sub>t</sub> + <var>η</var><sub>c</sub> · <var>p</var><sub>t</sub> · Δ<var>t</var></span><span class="tag"><var>η</var><sub>c</sub> = 0.93, Δ<var>t</var> = 15 min in the planner, 1 min in the simulator</span></div>
+<div class="row"><span><var>p</var><sub>t</sub> ≤ <var>P</var><sub>max</sub> · ( φ + <var>c</var><sub>t</sub> · (1 − <var>SOC</var><sub>t</sub>) ),   <var>c</var><sub>t</sub> = (1 − φ) / (1 − <var>s</var><sub>0</sub>)</span><span class="tag">taper above <var>s</var><sub>0</sub> = 80 %, floor φ = 30 % of <var>P</var><sub>max</sub></span></div>
+<div class="row"><span><var>p</var><sub>t</sub> + (<var>P</var><sub>max</sub> <var>c</var><sub>t</sub> / <var>C</var>) · <var>e</var><sub>t</sub> ≤ <var>P</var><sub>max</sub> (φ + <var>c</var><sub>t</sub>)</span><span class="tag">same bound, linear in <var>e</var> and <var>p</var>, so it fits the LP</span></div>
+</div>
+<p>In the simulator a thermal state also matters: battery temperature follows the charge rate with a 20-minute time constant, and above 45 °C the edge agent halves the power.</p>
+<figure>
+<div class="fig"><svg id="fig-taper" viewBox="0 0 900 260" role="img" aria-label="Allowed charge power against state of charge, and C-rate cost tiers"></svg></div>
+<figcaption><b>Figure 3.</b> Left: allowed power as a share of the maximum, flat to 80 % SOC then falling to 30 %. Right: the battery-health cost per kWh by charge rate. Costs grow with rate, so the planner prefers many slow kilowatts over few fast ones.</figcaption>
+</figure>
+
+<!-- 7 -->
+<div class="sec-tag">7 · Battery care</div>
+<h2 id="health">Battery health</h2>
+<p>A validated ageing model is out of scope for a simulated project. The planner uses a transparent proxy that keeps the problem solvable and captures the two things operators do to protect packs: <b>charge gently</b> and <b>do not sit full</b>.</p>
+<div class="eq">
+<div class="row"><span><var>J</var><sub>rate</sub> = Σ<sub>t</sub> Σ<sub>k</sub> <var>ρ</var><sub>k</sub> · <var>p</var><sub>k,t</sub> · Δ<var>t</var>,    <var>p</var><sub>t</sub> = Σ<sub>k</sub> <var>p</var><sub>k,t</sub></span><span class="tag">convex tiers</span></div>
+<div class="row"><span>tier bounds (C-rate): 0.15, 0.35, 1.0   ·   cost <var>ρ</var><sub>k</sub> ($/kWh): 0.002, 0.010, 0.035</span></div>
+<div class="row"><span><var>J</var><sub>dwell</sub> = <var>λ</var><sub>h</sub> · Σ<sub>t</sub> max(0, <var>e</var><sub>t</sub> − 0.8 <var>C</var>) · Δ<var>t</var></span><span class="tag"><var>λ</var><sub>h</sub> = 0.004 $ per kWh above 80 % per hour</span></div>
+</div>
+<p>Because the tiers are convex, an LP fills the cheap tier first without any integer variables. The dwell term pushes charging towards the end of the window so trucks do not wait fully charged for hours. Both terms are small next to energy cost; their job is to break ties in favour of the battery.</p>
+
+<!-- 8 -->
+<div class="sec-tag">8 · Stage 2 of the scheduler</div>
+<h2 id="lp">Power planner (LP)</h2>
+<p>Given a charging window for each truck, the planner chooses the charge power in every slot. Variables: <var>p</var><sub>v,t</sub> (grid-side kW, split across the three rate tiers), <var>e</var><sub>v,t</sub> (battery kWh), <var>h</sub><sub>v,t</sub> (kWh above 80 %), <var>s</var><sub>v</sub> (missed energy), <var>g</var><sub>t</sub> (grid import) and <var>P</var><sub>pk</sub> (peak import).</p>
+<div class="eq">
+<div class="row"><span>min  Σ<sub>t</sub> π<sub>t</sub> <var>g</var><sub>t</sub> Δ<var>t</var> + λ<sub>d</sub> <var>P</var><sub>pk</sub> + Σ<sub>v</sub>(<var>J</var><sub>rate</sub> + <var>J</var><sub>dwell</sub>)<sub>v</sub> + Σ<sub>v</sub> <var>M</var> ω<sub>v</sub> <var>s</var><sub>v</sub></span><span class="tag">energy + demand + health + missed energy</span></div>
+<div class="row"><span><var>e</var><sub>v,t+1</sub> = <var>e</var><sub>v,t</sub> + <var>η</var><sub>c</sub> <var>p</var><sub>v,t</sub> Δ<var>t</var></span><span class="tag">energy balance</span></div>
+<div class="row"><span><var>e</var><sub>v,0</sub> = reported energy now;  <var>e</var><sub>v,n</sub> + <var>s</var><sub>v</sub> ≥ <var>E</var><sub>req,v</sub> + 0.02 <var>C</var><sub>plan,v</sub></span><span class="tag">reach the target, with a 2 % cushion</span></div>
+<div class="row"><span>0 ≤ <var>p</var><sub>v,t</sub> ≤ <var>P</var><sub>max,v</sub>(SOH) and taper bound (§6);  <var>p</var><sub>v,t</sub> = 0 outside the truck's window</span></div>
+<div class="row"><span>Σ<sub>v</sub> <var>p</var><sub>v,t</sub> − <var>g</var><sub>t</sub> ≤ solar<sub>t</sub>,   <var>g</var><sub>t</sub> ≤ <var>P</var><sub>pk</sub> ≤ grid limit</span><span class="tag">site balance and peak</span></div>
+</div>
+<p>π<sub>t</sub> is the price, λ<sub>d</sub> the demand-charge rate, ω<sub>v</sub> the truck's priority weight and <var>M</var> = 50 $ per missed kWh. The slack <var>s</var><sub>v</sub> keeps the LP feasible when a deadline cannot be met; the penalty makes missing the deadline the last thing the optimiser accepts, and the shortfall is reported to the operator.</p>
+<div class="note"><b>Why the demand charge matters</b>With the demand charge, the planner spreads load and holds site peak to a few hundred kW. Without it, an experiment on the unconstrained model charged more kWh in the cheapest hours (47 % against 24 %) but hit the 1,500 kW grid limit, and the demand charge on that peak cost more than the energy it saved.</div>
+
+<!-- 9 -->
+<div class="sec-tag">9 · The scheduler</div>
+<h2 id="sched">Bay scheduler</h2>
+<p>With 50 trucks and 11 bays, charging power is not the only decision. Someone has to decide who gets a bay and for how long. The pools are separate: the 6 van bays only take Ford E-Transits, the 3 regional bays only take Volvos, the 2 long-haul bays only take Mercedes trucks.</p>
+<h3>Anatomy of a bay visit</h3>
+<figure>
+<div class="fig"><svg viewBox="0 0 900 200" role="img" aria-label="Timeline of one bay visit: waiting, plug-in, charging, unplug, buffer, departure">
+<g style="color:var(--fg)">
+<line class="grid" x1="30" y1="120" x2="870" y2="120"/>
+<rect class="nd-s" x="30" y="70" width="170" height="40" rx="6"/><text class="b" x="115" y="94" text-anchor="middle">Waiting lot</text>
+<rect class="nd-w" x="200" y="70" width="60" height="40" rx="6"/><text class="b" x="230" y="94" text-anchor="middle">Plug-in</text>
+<rect class="nd-w" x="260" y="70" width="380" height="40" rx="6"/><text class="b" x="450" y="94" text-anchor="middle">Charging (power chosen by the LP)</text>
+<rect class="nd-w" x="640" y="70" width="60" height="40" rx="6"/><text class="b" x="670" y="94" text-anchor="middle">Unplug</text>
+<rect class="nd-g" x="700" y="70" width="90" height="40" rx="6"/><text class="b" x="745" y="94" text-anchor="middle">Buffer</text>
+<line class="ln" x1="790" y1="52" x2="790" y2="132"/><text class="b" x="790" y="46" text-anchor="middle">Departure</text>
+<text class="mono m" x="230" y="146" text-anchor="middle">1 slot</text><text class="mono m" x="670" y="146" text-anchor="middle">1 slot</text><text class="mono m" x="745" y="146" text-anchor="middle">1 slot</text>
+<text class="mono m" x="115" y="146" text-anchor="middle">0 to many slots</text>
+<path class="lnm" d="M200 160 H 700" /><path class="lnm" d="M200 154 V 166"/><path class="lnm" d="M700 154 V 166"/>
+<text class="m" x="450" y="184" text-anchor="middle">the bay is occupied for this whole span</text>
+</g></svg></div>
+<figcaption><b>Figure 4.</b> A truck holds a bay from the plug-in slot to the end of the unplug slot. No charging happens in the first or last slot. The last slot before departure is a buffer, so a late connector or a small SOC error does not cause a miss. In the simulator, actual plug-in takes 4–8 min (van) or 8–14 min (tractor), unplug 3–6 or 6–10 min.</figcaption>
+</figure>
+<h3>Stage 1: sequencing with a time-indexed MILP</h3>
+<p>Each pool is solved separately. A truck that still needs charge is a job with a release slot <var>r</var><sub>j</sub> (arrival, or now), a deadline <var>D</var><sub>j</sub> (departure minus one buffer slot) and a duration that depends on its own battery:</p>
+<div class="eq">
+<div class="row"><span><var>k</var><sub>j</sub> = min { <var>k</var> : <var>e</var><sub>k</sub> ≥ <var>E</var><sub>target</sub> },   <var>e</var><sub>i+1</sub> = <var>e</var><sub>i</sub> + <var>η</var><sub>c</sub> · min(<var>P</var><sub>max</sub>(SOH), taper(<var>e</var><sub>i</sub>)) · Δ<var>t</var></span><span class="tag">flat-out slots, with taper</span></div>
+<div class="row"><span><var>p</var><sub>j</sub> = 1 + <var>k</var><sub>j</sub> + 1</span><span class="tag">plug-in + charge + unplug</span></div>
+</div>
+<p>Binary <var>x</var><sub>j,t</sub> = 1 when job <em>j</em> starts at slot <em>t</em>.</p>
+<div class="eq">
+<div class="row"><span>min  Σ<sub>j,t</sub> <var>c</var><sub>j,t</sub> <var>x</var><sub>j,t</sub></span></div>
+<div class="row"><span>Σ<sub>t</sub> <var>x</var><sub>j,t</sub> = 1  for every job <em>j</em></span><span class="tag">every truck starts exactly once</span></div>
+<div class="row"><span>Σ<sub>j</sub> Σ<sub>τ=t−p<sub>j</sub>+1…t</sub> <var>x</var><sub>j,τ</sub> + <var>f</var><sub>t</sub> ≤ <var>n</var><sub>b</sub>  for every slot <em>t</em></span><span class="tag">at most <var>n</var><sub>b</sub> bays busy; <var>f</var><sub>t</sub> = trucks already docked</span></div>
+<div class="row"><span><var>c</var><sub>j,t</sub> = <var>w</var> ω<sub>j</sub> (<var>t</var> − <var>r</var><sub>j</sub>) + π̄<sub>j,t</sub> <var>E</var><sub>j</sub> + <var>M</var> ω<sub>j</sub> <var>E</var><sub>late,j,t</sub></span><span class="tag">waiting + energy price + lateness</span></div>
+</div>
+<p>Here <var>w</var> = 0.5 $ per slot of queueing, π̄<sub>j,t</sub> is the average price over the slots the truck would charge in, <var>E</var><sub>j</sub> its energy, and <var>E</var><sub>late</sub> the energy it could not receive if <var>t</var> + <var>p</var><sub>j</sub> overruns the deadline. Capacity constraints have the consecutive-ones structure of interval scheduling, so the model is small and solves fast (about 0.4 s for all three pools). Trucks already in a bay are fixed jobs. If the solver returns nothing, an earliest-deadline-first rule is used.</p>
+<h3>Stage 1b: widening</h3>
+<p>Stage 1 books the shortest possible visit. That leaves no room for slow, cheap charging. Stage 1b grows each window, earliest deadline first, into any bay-slots that no one else has booked, in both directions. A truck in a quiet pool might get hours of slack and charge gently on solar power; a truck in a crowded pool gets only what it needs.</p>
+<h3>Stage 2: power inside the windows</h3>
+<p>The LP of §8 runs with each truck's window as its allowed charging slots: from the slot after the plug-in slot to the slot before the unplug slot. Sequencing and power are therefore chosen in two steps that each see the other's output: stage 1 sees prices and deadlines, stage 2 sees solar, the site cap, the demand charge and battery health.</p>
+<figure>
+<div class="fig"><svg viewBox="0 0 900 230" role="img" aria-label="Why the scheduler is split into two stages">
+<g style="color:var(--fg)">
+<rect class="nd-r" x="20" y="30" width="400" height="150" rx="10"/><text class="b" x="220" y="56" text-anchor="middle">First attempt: one joint MILP</text>
+<text class="m" x="220" y="82" text-anchor="middle">binary bay occupancy per truck and slot</text><text class="m" x="220" y="100" text-anchor="middle">+ continuous power, tiers, taper, peak</text>
+<text class="m" x="220" y="126" text-anchor="middle">90 s limit: best solution had a 99.6 % gap</text><text class="m" x="220" y="144" text-anchor="middle">and 3,400 kWh of missed energy</text>
+<text class="b" x="220" y="168" text-anchor="middle">Rejected</text>
+<rect class="nd-g" x="480" y="30" width="400" height="150" rx="10"/><text class="b" x="680" y="56" text-anchor="middle">Chosen: sequence, then power</text>
+<text class="m" x="680" y="82" text-anchor="middle">stage 1: interval MILP per pool (~0.4 s)</text><text class="m" x="680" y="100" text-anchor="middle">stage 1b: widen windows into spare bay-slots</text><text class="m" x="680" y="118" text-anchor="middle">stage 2: LP inside the windows (~0.2 s)</text>
+<text class="m" x="680" y="144" text-anchor="middle">every deadline met on the test day</text><text class="b" x="680" y="168" text-anchor="middle">Adopted</text>
+</g></svg></div>
+<figcaption><b>Figure 5.</b> The joint formulation is correct but too hard for a branch-and-bound solver at this size. Splitting it keeps both parts exact and fast, at the price of some optimality.</figcaption>
+</figure>
+<h3>When it re-plans</h3>
+<p>Plans are rebuilt on arrivals, on departures of trucks that were not ready, when a truck finishes and frees a bay, when a charger fails or comes back, and at least every four slots. Each re-plan starts from the trucks' reported energy, so the plan always reflects the latest telemetry.</p>
+
+<!-- 10 -->
+<div class="sec-tag">10 · Digital twin</div>
+<h2 id="sim">Yard simulator</h2>
+<p>The simulator is the stand-in for the real depot. It owns the true battery state of every truck, runs the physics each minute, and enforces bays and handling delays.</p>
+<figure>
+<div class="fig"><svg viewBox="0 0 960 250" role="img" aria-label="Truck state machine with handling delays">
+<defs><marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+<g style="color:var(--fg)">
+<rect class="nd" x="20" y="90" width="100" height="46" rx="8"/><text class="b" x="70" y="118" text-anchor="middle">Away</text>
+<rect class="nd-s" x="170" y="90" width="110" height="46" rx="8"/><text class="b" x="225" y="118" text-anchor="middle">Waiting lot</text>
+<rect class="nd-w" x="330" y="90" width="110" height="46" rx="8"/><text class="b" x="385" y="118" text-anchor="middle">Moving in</text>
+<rect class="nd-w" x="490" y="90" width="100" height="46" rx="8"/><text class="b" x="540" y="118" text-anchor="middle">Charging</text>
+<rect class="nd-w" x="640" y="90" width="110" height="46" rx="8"/><text class="b" x="695" y="118" text-anchor="middle">Unplugging</text>
+<rect class="nd-g" x="800" y="90" width="100" height="46" rx="8"/><text class="b" x="850" y="118" text-anchor="middle">Ready</text>
+<line class="ln" x1="120" y1="113" x2="168" y2="113" marker-end="url(#ar3)"/><text class="mono m" x="144" y="104" text-anchor="middle">arrives</text>
+<line class="ln" x1="280" y1="113" x2="328" y2="113" marker-end="url(#ar3)"/><text class="mono m" x="304" y="80" text-anchor="middle">window opens,</text><text class="mono m" x="304" y="92" text-anchor="middle">bay free</text>
+<line class="ln" x1="440" y1="113" x2="488" y2="113" marker-end="url(#ar3)"/><text class="mono m" x="464" y="80" text-anchor="middle">4–14 min</text><text class="mono m" x="464" y="92" text-anchor="middle">delay</text>
+<line class="ln" x1="590" y1="113" x2="638" y2="113" marker-end="url(#ar3)"/><text class="mono m" x="614" y="80" text-anchor="middle">energy ≥</text><text class="mono m" x="614" y="92" text-anchor="middle">requirement</text>
+<line class="ln" x1="750" y1="113" x2="798" y2="113" marker-end="url(#ar3)"/><text class="mono m" x="774" y="80" text-anchor="middle">3–10 min,</text><text class="mono m" x="774" y="92" text-anchor="middle">bay freed</text>
+<rect class="nd" x="800" y="190" width="100" height="40" rx="8"/><text class="b" x="850" y="214" text-anchor="middle">Dispatched</text>
+<line class="ln" x1="850" y1="138" x2="850" y2="188" marker-end="url(#ar3)"/><text class="mono m" x="858" y="168">on time</text>
+<rect class="nd-r" x="490" y="190" width="170" height="40" rx="8"/><text class="b" x="575" y="214" text-anchor="middle">Left short (missed)</text>
+<path class="lnm" d="M540 138 V 188" marker-end="url(#ar3)" stroke-dasharray="4 3"/><text class="mono m" x="548" y="168">departure before ready</text>
+</g></svg></div>
+<figcaption><b>Figure 6.</b> States of a truck in the yard. Delays are drawn per visit from model-specific ranges. A truck counts as on time only if it is in the Ready state, at the gate, when its departure slot starts.</figcaption>
+</figure>
+<h3>The edge agent</h3>
+<p>Every minute each charging truck's agent computes the power it will actually draw:</p>
+<div class="eq">
+<div class="row"><span><var>p</var> = min( <var>p</var><sub>plan</sub> + <var>p</var><sub>guard</sub>,  taper(<var>SOC</var>),  <var>P</var><sub>max</sub>(SOH) ) · <var>s</var><sub>site</sub> · (0.5 if <var>T</var><sub>batt</sub> &gt; 45 °C)</span></div>
+<div class="row"><span><var>p</var><sub>guard</sub> = max(0, <var>E</var><sub>req</sub> + 0.004 <var>C</var> − <var>e</var><sub>true</sub> − <var>η</var><sub>c</sub> Σ<sub>future</sub> <var>p</var><sub>plan</sub> Δ<var>t</var>) / (<var>η</var><sub>c</sub> · time to ready-by)</span><span class="tag">only when behind plan</span></div>
+<div class="row"><span><var>s</var><sub>site</sub> = min(1, (grid limit + solar<sub>actual</sub>) / Σ requested)</span><span class="tag">proportional site cap</span></div>
+</div>
+<p>The guard is zero while the truck is on track, so it never overrides the plan's decision to wait for cheaper power. It only acts when true energy plus the energy still planned would fall short of the requirement.</p>
+<h3>Costs counted</h3>
+<p>Energy cost is price times grid import (load minus realised solar, never below zero). Demand cost is the demand rate times the day's highest 15-minute average import. Battery cost applies the tier and dwell terms of §7 to the true charge rates and SOC. Peak, solar use, waiting time, bay utilisation, overcharge (energy beyond the requirement) and on-time rate are logged per run.</p>
+
+<h3>The policies compared</h3>
+<div class="tbl scroll"><table>
+<thead><tr><th>Policy</th><th>Who gets a bay</th><th>Power</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td><b style="color:var(--c-fcfs)">First come, first served</b></td><td>Earliest arrival in its pool</td><td>Flat out until the requirement is met</td><td>What most depots do</td></tr>
+<tr><td><b style="color:var(--c-edf)">Earliest departure first</b></td><td>Earliest deadline in its pool</td><td>Flat out</td><td>Standard scheduling rule</td></tr>
+<tr><td><b style="color:var(--c-smart)">Smart scheduler</b></td><td>MILP windows (§9)</td><td>LP inside the window, edge guard on top</td><td>This project</td></tr>
+<tr><td><b style="color:var(--c-ideal)">Ideal</b></td><td>No bays: a charger per truck</td><td>LP, no handling delays</td><td>A bound, not a real option</td></tr>
+</tbody></table></div>
+
+<!-- 11 -->
+<div class="sec-tag">11 · Language and search</div>
+<h2 id="agent">Nemotron and Tavily</h2>
+<p>NVIDIA Nemotron models run on Nebius Token Factory through its OpenAI-compatible endpoint. Three jobs use them. None of them changes a charge setpoint or a bay.</p>
+<div class="tbl scroll"><table>
+<thead><tr><th>Job</th><th>Model</th><th>What it does</th><th>Safeguard</th></tr></thead>
+<tbody>
+<tr><td>Dispatcher notes to actions</td><td><code>nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B</code></td><td>"Truck 7 is running two hours late. T12's route is now 200 km." becomes structured actions (delay, route, cargo kg, departure time, charger fault)</td><td>Actions are validated against known truck IDs and action types. A regex parser takes over if the call fails or returns nothing valid.</td></tr>
+<tr><td>Live temperature</td><td>Nano, with Tavily search</td><td>Tavily returns forecast text for the depot city; Nemotron extracts the Celsius value; the energy model recomputes every truck's requirement</td><td>Returns null instead of guessing; values outside −45…55 °C are rejected; default 15 °C if the lookup fails</td></tr>
+<tr><td>Explanations</td><td><code>nvidia/nemotron-3-super-120b-a12b</code></td><td>Answers "why did T20 wait and charge when it did?" using only a JSON fact sheet: the energy breakdown, wait time, charging windows, prices</td><td>Fact-only prompt; a templated explanation is the fallback</td></tr>
+</tbody></table></div>
+<p>Model IDs were taken from the account's own model list. It also serves <code>nvidia/Nemotron-3-Ultra-550b-a55b</code>, which is the candidate for harder explanation requests. Tavily is a runtime dependency of the weather feature, which qualifies for the Tavily bonus prize.</p>
+<h3>What the live calls taught us</h3>
+<ul>
+  <li>The Nano model parsed a three-sentence dispatcher note into the right three actions in 7.5 s. Super answered an explanation in 3.7 s.</li>
+  <li>These models spend tokens on reasoning before answering. With a 500-token limit an explanation was cut mid-sentence. The client now allows 1,500 to 2,500 tokens and treats <code>finish_reason: length</code> as a failure to be handled instead of returning half an answer.</li>
+  <li>When Tavily returned no forecast, an early prompt made the model answer 0 °C, which silently inflated every truck's energy by 16 %. The prompt now allows null, and the code validates the range.</li>
+  <li>The model's list endpoint spells the Nano ID with different capitalisation from the one found in search results. Always read the list.</li>
+</ul>
+
+<!-- 12 -->
+<div class="sec-tag">12 · Measured</div>
+<h2 id="results">Results</h2>
+<p>Eight simulated depot-days (seeds 0–7), four policies each, with realistic delays and noisy telemetry. All trucks in a run share the same random day across policies, so the comparison is paired.</p>
+<figure>
+<div class="legend"><span><i style="background:var(--accent)"></i>Energy</span><span><i style="background:var(--warn-fill)"></i>Demand charge</span><span><i style="background:var(--c-smart)"></i>Battery wear</span></div>
+<div class="fig"><svg id="fig-cost" viewBox="0 0 900 250" role="img" aria-label="Daily cost by policy"></svg></div>
+<figcaption><b>Figure 7.</b> Average daily cost over 8 days. The smart scheduler is about 39 % below first-come-first-served. The ideal bound shows what bays and handling delays cost: that gap is the room left for a better scheduler.</figcaption>
+</figure>
+<div class="tbl scroll"><table id="res-table"></table></div>
+<p class="note" style="margin-top:0"><b>Battery stress</b>The last three rows are why the smart scheduler is gentler on the packs, not only cheaper. It charges at a lower average rate and leaves trucks sitting full for far fewer hours, because it finishes charging close to departure instead of on arrival.</p>
+<p class="note" style="margin-top:0"><b>Reading the table</b>The smart scheduler makes trucks wait longer (about 2.7 h on average against 1.2 h) because it holds them until the charging window is cheap. Waiting in the lot costs nothing as long as the truck is ready by dispatch. Bay utilisation rises from 40 % to 67 % because trucks charge slowly while they hold a bay.</p>
+<h3>One day in detail (seed 0)</h3>
+<figure>
+<div class="legend"><span><i style="background:var(--solar)"></i>Solar</span><span><i style="background:var(--c-fcfs)"></i>First come</span><span><i style="background:var(--c-smart)"></i>Smart</span><span><i style="background:var(--c-ideal)"></i>Ideal</span></div>
+<div class="fig"><svg id="fig-load" viewBox="0 0 900 330" role="img" aria-label="Charging load by policy against solar and price"></svg></div>
+<figcaption><b>Figure 8.</b> Charging load through the day. First come, first served charges flat out on arrival and peaks above 850 kW. The smart scheduler flattens the peak and moves energy into cheap and solar hours. The strip under the axis shows the price (darker is dearer).</figcaption>
+</figure>
+<figure>
+<div class="legend"><span><i style="background:var(--c-fcfs)"></i>Van bays</span><span><i style="background:var(--c-edf)"></i>Regional bays</span><span><i style="background:var(--c-smart)"></i>Long-haul bays</span></div>
+<div class="fig"><svg id="fig-gantt" viewBox="0 0 900 400" role="img" aria-label="Bay occupancy chart for the smart scheduler"></svg></div>
+<figcaption><b>Figure 9.</b> Which truck holds which bay, when, under the smart scheduler. Each bar is one visit, labelled with the truck. Bars are longer than a flat-out charge would need because the scheduler uses spare bay time to charge gently.</figcaption>
+</figure>
+<figure>
+<div class="fig"><div class="two" id="queues"></div></div>
+<figcaption><b>Figure 10.</b> Trucks waiting for a bay, per pool, first come (orange) against smart (green). The smart scheduler keeps more trucks waiting for longer; they are not late, they are waiting for a cheaper window.</figcaption>
+</figure>
+<figure>
+<div class="legend"><span><i style="background:var(--c-fcfs)"></i>First come</span><span><i style="background:var(--c-smart)"></i>Smart</span></div>
+<div class="fig"><svg id="fig-wait" viewBox="0 0 900 250" role="img" aria-label="Distribution of waiting time before docking"></svg></div>
+<figcaption><b>Figure 11.</b> How long each of the 50 trucks waited for a bay on seed 0. The long tail under the smart scheduler is deliberate and bounded by each truck's deadline.</figcaption>
+</figure>
+<figure>
+<div class="legend"><span><i style="background:var(--c-fcfs)"></i>First come</span><span><i style="background:var(--c-smart)"></i>Smart</span></div>
+<div class="fig"><svg id="fig-truck" viewBox="0 0 900 300" role="img" aria-label="State of charge and power for one truck under three policies"></svg></div>
+<figcaption id="cap-truck"></figcaption>
+</figure>
+<h3>Stress: cold weather with charger faults</h3>
+<p>Six days at −10 °C, with each charging truck facing a 0.4 % chance per slot of its connector failing for two hours.</p>
+<div class="tbl scroll"><table id="stress-table"></table></div>
+<h3>What does not work yet</h3>
+<ul>
+  <li><b>Occasional misses.</b> The smart scheduler made every departure on all 8 normal days and missed 0.5 trucks per day in the stress runs. The stress misses follow connector faults that remove hours of charging from a truck with a tight deadline. A fault-aware priority bump and earlier re-planning are the next fixes.</li>
+  <li><b>The ideal bound is not immune.</b> It had no misses on the 8 normal days but 0.17 per day in the stress runs. It plans to the wire, and noise in the SOC reports can leave a truck a few kWh short. That is the effect the planning cushion exists for.</li>
+  <li><b>Solar use is modest for every policy</b> (31 % for the smart scheduler, 50 % even for the ideal bound) because most trucks arrive after the sun is going down. Using more solar needs daytime dwell time, which this fleet does not have.</li>
+</ul>
+
+<!-- 13 -->
+<div class="sec-tag">13 · Interfaces</div>
+<h2 id="ui">Interfaces</h2>
+<h3>Web application</h3>
+<p><code>python server.py</code> serves the interface at <code>localhost:8000</code> and runs the real scheduler and simulator behind it. It simulates all four policies for a chosen seed, temperature and fault rate, then shows:</p>
+<ul>
+  <li><b>The yard.</b> Bays with trucks whose trailers fill as the battery charges, a time-to-target line on each card (for example "1h 15m to 85%"), per-pool queues with slack chips, and a ready lane. Filters highlight the trucks at risk of missing departure or above 80 % charge and dim the rest.</li>
+  <li><b>Time navigation.</b> A scrubber marked with the peak-tariff window, solar peak, arrival wave and departure wave, with one-click jumps to each, to the current time of day, and play at 1x, 2x or 4x.</li>
+  <li><b>Site power.</b> Solar, charging load and grid import against the grid limit on the left axis and price on a right-hand axis. The headroom between grid import and the limit is shaded wherever import comes within 30 % of the limit, and the day's peak is labelled as the value that sets the demand charge.</li>
+  <li><b>Bay schedule.</b> Who holds which bay and when. Hovering a bar shows arrival charge, target, power and deadline. A cursor follows the scrubber across the schedule, the queue charts and the site power chart.</li>
+  <li><b>Policy comparison</b>, including a battery-stress panel: average charge rate, truck-hours above 80 % charge, share of energy delivered above 0.15 C, and the wear cost.</li>
+  <li><b>Truck drawer</b> with the energy breakdown, charge curve, timeline and a Nemotron explanation.</li>
+  <li><b>Dispatcher drawer</b> with recommended actions, quick scenarios and free-text notes (next section).</li>
+</ul>
+<p>The layout adapts from wide desktop monitors down to 1,024 px tablets: grids reflow, the queue and ready lane move under the bays, and nothing scrolls sideways.</p>
+<h3>Yard design</h3>
+<p>The yard view follows a design prototype: each charging bay holds a truck drawn side-on whose trailer fills as the battery charges; a dashed line marks the charge the trip needs; amber means charging, green means ready, slate means waiting. Each pool has a queue with a position, wait time and a slack chip (plenty, tight, at risk), and a ready lane. The application renders it from the scheduler's real output, including the plug-in and unplug states.</p>
+<h3>Dispatcher console</h3>
+<p>The dispatcher drawer has three parts.</p>
+<ul>
+  <li><b>Recommended actions.</b> When a truck misses its departure, cannot be charged for its trip, or a charger fails, the drawer proposes concrete fixes with numbers computed from the same models: a delay long enough to finish the charge, the longest route its delivered energy supports, a cargo weight that fits the battery, or marking a faulted charger repaired. One click applies the change and re-plans. For a charger fault it also names which waiting truck to dock in the held bay.</li>
+  <li><b>Quick scenarios.</b> Grid curtailment (import limit cut to 900 kW), a cold snap (−10 °C), a 3-hour route extension for the regional tractors (held to what each battery can carry), and a reset.</li>
+  <li><b>Free-text notes.</b> "Truck 5 is carrying 1.6 tonnes of cargo. Truck 30 route is now 280 km. Truck 7 delayed 2 hours." become actions; the energy model recomputes each truck's requirement; the scheduler re-plans. Trips that exceed the battery are flagged immediately.</li>
+</ul>
+
+<!-- 14 -->
+<div class="sec-tag">14 · Quality</div>
+<h2 id="tests">Testing</h2>
+<p>Twelve automated tests run in about 30 seconds (<code>python -m pytest -q</code>):</p>
+<ul>
+  <li>The fleet has 50 trucks of all three models.</li>
+  <li>The energy model reproduces each model's rated consumption at reference conditions.</li>
+  <li>Energy rises with distance, cargo and terrain and cold weather, and falls with lighter cargo.</li>
+  <li>The requirement is trip energy plus the margin plus the reserve, exactly.</li>
+  <li>The unconstrained LP meets every deadline within the site limit.</li>
+  <li>Stage 1 windows never exceed a pool's bay count and always sit between arrival and the dispatch buffer.</li>
+  <li>The full scheduler delivers the energy and never charges in a plug-in slot or after a window.</li>
+  <li>An impossible deadline is reported as a shortfall, not hidden.</li>
+  <li>The dispatcher parser handles delays, route changes, cargo weights and faults.</li>
+  <li>An end-to-end day: everyone dispatched, handling delays present, costs ranked ideal &lt; smart &lt; first-come, and no pool above its bay count at any minute.</li>
+</ul>
+
+<!-- 15 -->
+<div class="sec-tag">15 · Honest limits</div>
+<h2 id="limits">Limits and assumptions</h2>
+<ul>
+  <li><b>Everything is simulated.</b> Prices, solar, arrivals, trips, cargo and SOH are generated. Truck battery and charging figures are public; mass, drag and drivetrain parameters are estimates, tied to the real range by calibration.</li>
+  <li><b>The energy model is physics-flavoured, not a vehicle model.</b> It has no route-level speed profile, wind, traffic or tyre data. The 15 % margin exists because of this.</li>
+  <li><b>Battery health is a proxy.</b> The tiers and dwell cost are plausible and convex, not fitted to cell ageing data. SOH only changes capacity and power limit; it does not evolve during the day.</li>
+  <li><b>Telemetry noise is Gaussian and unbiased.</b> Real BMS estimates can be biased, delayed or missing.</li>
+  <li><b>No uncertainty in the plan.</b> The planner is deterministic with a fixed cushion. A scenario-based or robust planner could use less margin.</li>
+  <li><b>Bay assignment is per-pool and not preemptive.</b> A truck in a bay stays until it is done. Moving a half-charged truck out for an urgent one is not modelled.</li>
+  <li><b>No vehicle-to-grid, no site battery, no export.</b> Surplus solar is curtailed.</li>
+  <li><b>No real charger protocol.</b> The edge agents are simulated; a real deployment would use OCPP or the vendor's interface.</li>
+  <li><b>Handling delays are drawn from uniform ranges</b> chosen to be plausible, not measured.</li>
+</ul>
+
+<!-- 16 -->
+<div class="sec-tag">16 · Submission</div>
+<h2 id="hack">Hackathon fit</h2>
+<div class="tbl scroll"><table>
+<thead><tr><th>Judging criterion</th><th>How the project answers it</th></tr></thead>
+<tbody>
+<tr><td>Technological implementation</td><td>Two-stage exact scheduler (MILP then LP) on HiGHS, a physics energy model, noisy-telemetry planning, 1-minute edge agents, 12 tests; Nemotron on Token Factory in the loop with validated outputs and fallbacks</td></tr>
+<tr><td>Design</td><td>Web application built from the design: trailers that fill as batteries charge, per-pool queues with risk chips, a ready lane, a bay schedule and a truck drawer with the energy waterfall</td></tr>
+<tr><td>Potential impact</td><td>Depots with fewer chargers than vehicles pay for peak power and idle bays; the benchmark shows about 39 % lower daily cost and 27 % lower peak than first come, first served, in simulation</td></tr>
+<tr><td>Quality of the idea</td><td>Treats the charger bay as the scarce resource and the battery's real requirement (cargo, terrain, temperature, age) as the target; uses the language model for intake and explanation only, not for decisions</td></tr>
+</tbody></table></div>
+<h3>Services used</h3>
+<ul>
+  <li><b>Nebius Token Factory</b>: Nemotron Nano (parsing, weather extraction) and Super (explanations), called at runtime.</li>
+  <li><b>NVIDIA Nemotron</b> open models: <code>NVIDIA-Nemotron-3-Nano-30B-A3B</code> and <code>nemotron-3-super-120b-a12b</code>; Ultra is available for later.</li>
+  <li><b>Tavily</b>: live weather search feeding the energy model.</li>
+  <li><b>Nebius Serverless Jobs</b>: the benchmark script and Dockerfile are ready (<code>scripts/benchmark.py</code>). A large cloud run has not been done yet and is optional.</li>
+</ul>
+<h3>Feedback notes for the submission form</h3>
+<ul>
+  <li>Token Factory's OpenAI-compatible API worked with a plain HTTP client on the first try, and the model-list endpoint made ID discovery simple.</li>
+  <li>Reasoning tokens count against <code>max_tokens</code>. A documented recommendation for output budgets on the Nemotron 3 models would save time.</li>
+  <li>Model naming differs in capitalisation between public pages and the API list.</li>
+  <li>For Tavily, the answer field is concise and good, but forecasts for a specific day are often missing; extraction must handle "no data".</li>
+</ul>
+<h3>Still to do before the deadline (30 Oct 2026)</h3>
+<ol>
+  <li>Create the public GitHub repository (MIT license is in place) and add the license and README to the top page.</li>
+  <li>Record the 3-minute demo video: yard replay, dispatcher note, energy waterfall, Nemotron explanation, benchmark.</li>
+  <li>Optionally run the benchmark as a Nebius Serverless Job for a 100-seed result.</li>
+  <li>Fix the fault-related misses (§12) and rotate every API key that was used during development.</li>
+  <li>Fill the Devpost form: track, description, demo, video, repository, feedback.</li>
+</ol>
+
+<!-- 17 -->
+<div class="sec-tag">17 · Code</div>
+<h2 id="repo">Repository</h2>
+<div class="tbl scroll"><table>
+<thead><tr><th>File</th><th>Contents</th></tr></thead>
+<tbody>
+<tr><td><code>fleetcharge/specs.py</code></td><td>Truck models (battery, charging, mass, drag, delays), bays, site, health, dispatch and telemetry settings</td></tr>
+<tr><td><code>fleetcharge/energy.py</code></td><td>Physics trip-energy model with calibration and breakdown</td></tr>
+<tr><td><code>fleetcharge/scenario.py</code></td><td>Price, solar and fleet generation; requirement and target; reported SOC and SOH</td></tr>
+<tr><td><code>fleetcharge/planner.py</code></td><td>Power LP</td></tr>
+<tr><td><code>fleetcharge/scheduler.py</code></td><td>Bay sequencing MILP, window widening, full scheduler</td></tr>
+<tr><td><code>fleetcharge/yard.py</code></td><td>Yard digital twin, edge agents, four policies</td></tr>
+<tr><td><code>fleetcharge/agent.py</code></td><td>Nemotron client, dispatcher parser, Tavily weather, explanations</td></tr>
+<tr><td><code>server.py</code>, <code>web/</code></td><td>Python server (stdlib) with the JSON API, and the yard web interface</td></tr>
+<tr><td><code>scripts/benchmark.py</code>, <code>Dockerfile</code></td><td>Multi-seed benchmark, ready for a Serverless Job</td></tr>
+<tr><td><code>tests/test_core.py</code></td><td>The 12 tests</td></tr>
+</tbody></table></div>
+<h3>Run it</h3>
+<div class="card" style="font-family:var(--f-mono);font-size:13px;overflow-x:auto;white-space:pre">pip install -r requirements.txt
+export NEBIUS_API_KEY=...      # optional, offline fallbacks otherwise
+export TAVILY_API_KEY=...      # optional
+python server.py               # http://localhost:8000
+python -m pytest -q
+python scripts/benchmark.py --seeds 20 --workers 8
+python scripts/benchmark.py --seeds 20 --temp -10 --fault-rate 0.004</div>
+
+<!-- appendix -->
+<div class="sec-tag">Appendix</div>
+<h2 id="params">Parameters</h2>
+<div class="tbl scroll"><table>
+<thead><tr><th>Setting</th><th class="num">Value</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>Slot length</td><td class="num">15 min</td><td>Planner step; the simulator steps every minute</td></tr>
+<tr><td>Energy margin μ</td><td class="num">15 %</td><td>On top of the trip energy</td></tr>
+<tr><td>Reserve</td><td class="num">10 % of usable</td><td>Arrival buffer</td></tr>
+<tr><td>Target cap</td><td class="num">95 %</td><td>Longest trip dispatch will assign</td></tr>
+<tr><td>Dispatch buffer</td><td class="num">1 slot</td><td>Truck must be ready this long before departure</td></tr>
+<tr><td>Planning cushion</td><td class="num">2 % of usable</td><td>Extra energy the LP aims for, against SOC noise</td></tr>
+<tr><td>Guard goal</td><td class="num">+0.4 % of usable</td><td>Edge agent aims slightly above the requirement</td></tr>
+<tr><td>Missed-energy penalty</td><td class="num">50 $/kWh</td><td>Times the truck's priority weight (1 or 2)</td></tr>
+<tr><td>Queue weight w</td><td class="num">0.5 $/slot</td><td>Per unit priority, stage 1</td></tr>
+<tr><td>Bay holding cost</td><td class="num">0.35 $/slot</td><td>Configured; used by the joint model that was rejected</td></tr>
+<tr><td>SOC / SOH noise</td><td class="num">1 % / 1 %</td><td>One sigma, absolute</td></tr>
+<tr><td>Replan interval</td><td class="num">≥ every 4 slots</td><td>Plus on events</td></tr>
+</tbody></table></div>
+<p style="color:var(--muted);font-size:13px;margin-top:40px">Built for the Nebius x NVIDIA Global AI Hackathon. Simulated data throughout.</p>
+</main>
+</div>
+
+<script>
+const D = {"bench":{"edf":{"total_cost":[1806.3991,91.3194],"energy_cost":[1261.2625,88.7023],"demand_cost":[479.7656,9.5525],"health_cost":[65.371,3.6867],"peak_kw":[872.301,17.3681],"missed":[0.0,0.0],"mean_wait_h":[1.1675,0.2251],"max_wait_h":[6.4,0.6986],"bay_utilisation":[0.3962,0.0234],"solar_self_consumption":[0.2906,0.0248],"overcharge_kwh":[24.475,3.6842],"plan_time_s":[0.0,0.0],"plans":[0.0,0.0],"avg_c_rate":[0.2893,0.002],"hi_soc_dwell_h":[237.8333,24.4857],"fast_charge_share":[0.9955,0.0017]},"fcfs":{"total_cost":[1804.116,91.1505],"energy_cost":[1258.7212,88.2774],"demand_cost":[479.855,7.571],"health_cost":[65.5398,3.5915],"peak_kw":[872.4637,13.7654],"missed":[0.0,0.0],"mean_wait_h":[1.1914,0.2563],"max_wait_h":[3.9062,0.6752],"bay_utilisation":[0.3954,0.0232],"solar_self_consumption":[0.2907,0.0248],"overcharge_kwh":[24.475,3.6842],"plan_time_s":[0.0,0.0],"plans":[0.0,0.0],"avg_c_rate":[0.2893,0.002],"hi_soc_dwell_h":[240.7375,26.0399],"fast_charge_share":[0.9955,0.0017]},"ideal":{"total_cost":[648.6304,135.3496],"energy_cost":[410.8775,70.053],"demand_cost":[215.8571,78.7442],"health_cost":[21.8958,1.7331],"peak_kw":[392.4674,143.1713],"missed":[0.0,0.0],"mean_wait_h":[0.0,0.0],"max_wait_h":[0.0,0.0],"bay_utilisation":[0.0,0.0],"solar_self_consumption":[0.4954,0.0495],"overcharge_kwh":[14.1875,2.6508],"plan_time_s":[8.9742,1.3398],"plans":[68.625,2.56],"avg_c_rate":[0.1668,0.0055],"hi_soc_dwell_h":[49.9292,29.4831],"fast_charge_share":[0.284,0.0376]},"smart":{"total_cost":[1094.9541,40.2065],"energy_cost":[704.776,29.618],"demand_cost":[349.4536,28.118],"health_cost":[40.7245,2.1778],"peak_kw":[635.3701,51.1237],"missed":[0.0,0.0],"mean_wait_h":[2.7322,0.3599],"max_wait_h":[11.0292,0.7271],"bay_utilisation":[0.672,0.0362],"solar_self_consumption":[0.3127,0.0444],"overcharge_kwh":[16.1625,2.5967],"plan_time_s":[15.0329,2.1659],"plans":[76.875,1.2464],"avg_c_rate":[0.2321,0.0079],"hi_soc_dwell_h":[127.4354,23.7735],"fast_charge_share":[0.7429,0.0428]}},"stress":{"edf":{"total_cost":[1935.2638,108.4263],"energy_cost":[1373.104,111.1484],"demand_cost":[468.0558,22.9703],"health_cost":[94.1039,4.3945],"peak_kw":[851.0106,41.7642],"missed":[0.0,0.0],"mean_wait_h":[1.9521,0.1411],"max_wait_h":[9.6306,1.4534],"bay_utilisation":[0.5117,0.0169],"solar_self_consumption":[0.3153,0.0235],"overcharge_kwh":[20.5333,1.8074],"plan_time_s":[0.0,0.0],"plans":[0.0,0.0],"avg_c_rate":[0.2843,0.002],"hi_soc_dwell_h":[388.2944,35.1503],"fast_charge_share":[0.9899,0.0023]},"fcfs":{"total_cost":[1937.2558,106.5499],"energy_cost":[1372.0687,107.8343],"demand_cost":[471.4598,13.2709],"health_cost":[93.7273,4.8234],"peak_kw":[857.1996,24.1288],"missed":[0.5,0.5477],"mean_wait_h":[1.9236,0.066],"max_wait_h":[5.6444,0.574],"bay_utilisation":[0.5101,0.0191],"solar_self_consumption":[0.3152,0.023],"overcharge_kwh":[20.4833,1.768],"plan_time_s":[0.0,0.0],"plans":[0.0,0.0],"avg_c_rate":[0.2844,0.002],"hi_soc_dwell_h":[389.7028,35.1624],"fast_charge_share":[0.9902,0.0021]},"ideal":{"total_cost":[801.6922,109.3486],"energy_cost":[525.2539,76.1631],"demand_cost":[246.6208,36.8603],"health_cost":[29.8175,4.3975],"peak_kw":[448.4014,67.0188],"missed":[0.1667,0.4082],"mean_wait_h":[0.0,0.0],"max_wait_h":[0.0,0.0],"bay_utilisation":[0.0,0.0],"solar_self_consumption":[0.5331,0.0328],"overcharge_kwh":[13.6167,1.2139],"plan_time_s":[10.2118,1.0175],"plans":[73.5,2.1679],"avg_c_rate":[0.1692,0.0072],"hi_soc_dwell_h":[99.1833,29.6149],"fast_charge_share":[0.3009,0.0434]},"smart":{"total_cost":[1304.7612,101.7696],"energy_cost":[845.6001,88.0511],"demand_cost":[392.9222,31.8309],"health_cost":[66.2389,4.6503],"peak_kw":[714.404,57.8744],"missed":[0.5,0.8367],"mean_wait_h":[3.6453,0.2722],"max_wait_h":[12.6306,1.4144],"bay_utilisation":[0.7069,0.0276],"solar_self_consumption":[0.3645,0.0674],"overcharge_kwh":[15.2,1.5811],"plan_time_s":[18.343,1.9127],"plans":[77.3333,1.5055],"avg_c_rate":[0.2432,0.0041],"hi_soc_dwell_h":[265.5667,36.7192],"fast_charge_share":[0.8101,0.0212]}},"n_bench":8,"n_stress":6,"sens":{"e_transit":{"cal":1.686,"rated":0.45,"pay0":0.38,"pay50":0.45,"pay100":0.52,"T-10":0.606,"T0":0.544,"T15":0.45,"T30":0.453,"T40":0.48,"el0":0.405,"el3":0.45,"el6":0.495,"el10":0.555},"vnr_electric":{"cal":0.999,"rated":1.02,"pay0":0.761,"pay50":1.02,"pay100":1.279,"T-10":1.323,"T0":1.202,"T15":1.02,"T30":1.025,"T40":1.075,"el0":0.851,"el3":1.02,"el6":1.189,"el10":1.413},"eactros_600":{"cal":1.082,"rated":1.18,"pay0":0.863,"pay50":1.18,"pay100":1.497,"T-10":1.47,"T0":1.354,"T15":1.18,"T30":1.184,"T40":1.227,"el0":0.989,"el3":1.18,"el6":1.371,"el10":1.625}},"clocks":["12:00","12:15","12:30","12:45","13:00","13:15","13:30","13:45","14:00","14:15","14:30","14:45","15:00","15:15","15:30","15:45","16:00","16:15","16:30","16:45","17:00","17:15","17:30","17:45","18:00","18:15","18:30","18:45","19:00","19:15","19:30","19:45","20:00","20:15","20:30","20:45","21:00","21:15","21:30","21:45","22:00","22:15","22:30","22:45","23:00","23:15","23:30","23:45","00:00","00:15","00:30","00:45","01:00","01:15","01:30","01:45","02:00","02:15","02:30","02:45","03:00","03:15","03:30","03:45","04:00","04:15","04:30","04:45","05:00","05:15","05:30","05:45","06:00","06:15","06:30","06:45","07:00","07:15","07:30","07:45","08:00","08:15","08:30","08:45","09:00","09:15","09:30","09:45","10:00","10:15","10:30","10:45","11:00","11:15","11:30","11:45"],"price":[0.142,0.142,0.142,0.142,0.138,0.138,0.138,0.138,0.151,0.151,0.151,0.151,0.142,0.142,0.142,0.142,0.3,0.3,0.3,0.3,0.334,0.334,0.334,0.334,0.374,0.374,0.374,0.374,0.359,0.359,0.645,0.645,0.529,0.529,0.294,0.294,0.12,0.12,0.12,0.12,0.13,0.13,0.13,0.13,0.141,0.141,0.141,0.141,0.068,0.068,0.068,0.068,0.088,0.088,0.088,0.088,0.078,0.078,0.078,0.078,0.082,0.082,0.082,0.082,0.084,0.084,0.084,0.084,0.087,0.087,0.087,0.087,0.147,0.147,0.147,0.147,0.159,0.159,0.159,0.159,0.138,0.138,0.138,0.138,0.165,0.165,0.165,0.165,0.129,0.129,0.129,0.129,0.146,0.146,0.146,0.146],"solar":[868,849,877,812,807,803,846,856,870,808,783,815,856,759,784,743,699,653,605,554,502,449,395,340,285,231,178,127,78,34,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,31,65,114,144,178,236,228,285,313,365,409,465,544,549,668,746,821,856,886,913,936],"load_fcfs":[0,10,19,19,19,33,71,205,205,264,389,546,574,658,553,479,568,661,568,469,409,496,602,576,656,766,721,704,762,761,750,797,584,646,709,840,878,801,588,498,491,701,687,695,661,449,388,245,132,77,85,78,73,61,55,55,55,48,35,33,30,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"grid_fcfs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,2,8,4,61,207,236,371,535,543,577,684,727,750,797,584,646,709,840,878,801,588,498,491,701,687,695,661,449,388,245,132,77,85,78,73,61,55,55,55,48,35,33,30,15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"m_fcfs":{"policy":"fcfs","energy_cost":1130.926,"demand_cost":483.07,"health_cost":63.318,"total_cost":1677.314,"peak_kw":878.309,"missed":0,"on_time_rate":1.0,"shortfall_kwh":0.0,"overcharge_kwh":25.4,"mean_wait_h":1.109,"max_wait_h":3.817,"bay_utilisation":0.415,"solar_self_consumption":0.315,"energy_delivered_kwh":6250.153,"avg_cost_per_kwh":0.258,"plans":0,"plan_time_s":0.0},"load_smart":[0,0,0,0,9,11,34,125,126,120,124,222,282,300,249,254,313,438,288,194,396,343,339,308,242,289,318,429,454,430,155,444,394,195,332,445,463,404,427,458,429,639,638,633,530,506,414,173,564,639,606,630,402,267,273,199,306,354,447,570,318,385,495,451,236,189,267,146,76,88,168,129,0,0,0,9,70,114,160,166,258,294,343,280,319,269,107,20,17,12,0,0,0,0,0,0],"grid_smart":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,57,140,303,376,396,155,444,394,195,332,445,463,404,427,458,429,639,638,633,530,506,414,173,564,639,606,630,402,267,273,199,306,354,447,570,318,385,495,451,236,189,267,146,76,88,168,129,0,0,0,5,5,0,16,18,22,65,58,0,0,0,0,0,0,0,0,0,0,0,0,0],"m_smart":{"policy":"smart","energy_cost":700.889,"demand_cost":351.626,"health_cost":40.897,"total_cost":1093.412,"peak_kw":639.32,"missed":0,"on_time_rate":1.0,"shortfall_kwh":0.0,"overcharge_kwh":15.6,"mean_wait_h":2.704,"max_wait_h":12.167,"bay_utilisation":0.693,"solar_self_consumption":0.273,"energy_delivered_kwh":6239.791,"avg_cost_per_kwh":0.169,"plans":77,"plan_time_s":12.221},"load_ideal":[0,0,0,0,0,3,95,107,114,332,279,402,662,505,593,641,609,588,546,494,430,394,358,303,245,210,160,115,72,31,0,0,0,0,0,0,302,303,303,303,303,303,303,303,303,303,303,303,304,304,304,304,304,304,304,304,304,304,304,304,305,305,305,306,307,309,306,305,307,302,314,306,142,308,250,83,73,117,161,188,554,556,354,400,446,374,496,489,275,143,155,127,14,0,0,0],"grid_ideal":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,302,303,303,303,303,303,303,303,303,303,303,303,304,304,304,304,304,304,304,304,304,304,304,304,305,305,305,306,307,309,306,305,307,302,314,306,142,308,250,52,8,3,16,26,318,328,68,87,81,29,41,0,0,0,0,0,0,0,0,0],"m_ideal":{"policy":"ideal","energy_cost":330.706,"demand_cost":180.443,"health_cost":23.423,"total_cost":534.572,"peak_kw":328.078,"missed":0,"on_time_rate":1.0,"shortfall_kwh":0.0,"overcharge_kwh":15.0,"mean_wait_h":0.0,"max_wait_h":0.0,"bay_utilisation":0.0,"solar_self_consumption":0.439,"energy_delivered_kwh":6239.24,"avg_cost_per_kwh":0.082,"plans":69,"plan_time_s":8.079},"queue_fcfs":{"e_transit":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,3,3,5,4,2,4,5,5,7,7,8,7,6,7,6,7,7,6,6,6,6,5,5,3,3,3,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"vnr_electric":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,3,2,2,4,3,4,4,4,3,3,3,3,3,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"eactros_600":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,2,1,1,1,1,1,2,2,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"queue_smart":{"e_transit":[0,0,0,0,0,0,0,0,0,0,0,0,1,2,1,0,0,0,1,1,2,4,4,7,7,6,8,8,8,10,9,7,8,9,9,9,10,9,9,9,9,7,7,6,6,6,5,5,5,3,3,3,2,2,2,2,2,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"vnr_electric":[0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,2,3,3,3,3,5,5,5,7,7,7,7,8,8,8,8,9,9,9,8,8,8,7,6,6,6,5,5,5,5,5,5,3,3,3,2,2,2,2,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"eactros_600":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,1,1,1,1,3,4,3,3,3,3,3,3,4,4,3,3,3,3,3,3,2,2,2,2,2,2,2,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"gantt":[["e_transit",4,"T01",37,48],["e_transit",3,"T02",31,46],["e_transit",1,"T03",5,13],["e_transit",1,"T04",14,30],["e_transit",1,"T05",31,40],["e_transit",2,"T06",58,90],["e_transit",3,"T07",23,30],["e_transit",0,"T08",25,33],["e_transit",4,"T09",27,36],["e_transit",1,"T10",41,52],["e_transit",2,"T11",30,43],["e_transit",5,"T12",41,58],["e_transit",1,"T13",52,84],["e_transit",5,"T14",31,40],["e_transit",0,"T15",12,24],["e_transit",4,"T16",49,84],["e_transit",0,"T17",34,48],["e_transit",2,"T18",43,57],["e_transit",3,"T19",46,87],["e_transit",5,"T20",18,29],["e_transit",2,"T21",5,14],["e_transit",3,"T22",9,21],["e_transit",0,"T23",49,71],["e_transit",0,"T24",1,10],["e_transit",4,"T25",10,24],["e_transit",5,"T26",59,71],["e_transit",5,"T27",10,17],["e_transit",2,"T28",15,29],["vnr_electric",0,"T29",48,56],["vnr_electric",0,"T30",30,38],["vnr_electric",0,"T31",39,47],["vnr_electric",0,"T32",56,72],["vnr_electric",1,"T33",24,34],["vnr_electric",2,"T34",38,47],["vnr_electric",2,"T35",57,86],["vnr_electric",1,"T36",51,87],["vnr_electric",1,"T37",35,41],["vnr_electric",2,"T38",48,57],["vnr_electric",1,"T39",42,51],["vnr_electric",0,"T40",12,22],["vnr_electric",2,"T41",28,38],["vnr_electric",0,"T42",23,29],["eactros_600",0,"T43",53,80],["eactros_600",1,"T44",47,75],["eactros_600",0,"T45",6,19],["eactros_600",0,"T46",40,53],["eactros_600",1,"T47",10,25],["eactros_600",1,"T48",34,46],["eactros_600",1,"T49",26,33],["eactros_600",0,"T50",19,39]],"example":{"vid":"T38","model":"Volvo VNR Electric","route_km":152,"payload_kg":19518,"elev":5.5,"soh":0.907,"soh_rep":0.914,"arrive":"16:00","depart":"09:00","soc_arrive":0.205,"req":{"rolling":94.21,"aero":43.41,"stop_go":8.31,"climb":64.39,"aux":11.4,"total":221.72,"kwh_per_km":1.46,"margin":33.26,"reserve":41.29,"required":296.28},"target":0.717,"cap_plan":412.9,"cap_true":409.9,"soc_smart":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.205,0.286,0.367,0.448,0.529,0.608,0.668,0.704,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725,0.725],"pw_smart":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,143.0,143.0,143.0,143.0,138.3,105.9,63.4,37.8,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0],"state_smart":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,3,3,3,3,3,3,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,6,6,6,6,6,6,6,6,6,6,6,6],"soc_fcfs":[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,0.21,0.291,0.372,0.454,0.535,0.616,0.697,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724,0.724],"pw_fcfs":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,9.5,143.0,143.0,143.0,143.0,143.0,143.0,47.7,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]},"fleet":{"n":50,"payload_mean_kg":5983,"target_mean":0.773,"soh_min":0.821,"soh_max":0.997},"wait_smart":[1.25,0.5,0.0,0.5,0.0,6.0,0.0,0.5,0.0,2.0,1.0,1.25,8.58,0.5,0.0,7.0,3.5,5.18,5.85,0.0,0.0,0.0,5.75,0.0,0.0,9.5,0.0,0.5,4.0,0.5,4.5,8.87,0.25,3.53,12.17,6.85,2.75,8.0,3.0,0.0,0.0,1.5,8.37,5.75,0.0,4.0,0.0,0.5,0.25,1.03],"wait_fcfs":[3.13,2.4,0.0,0.0,3.35,3.82,0.67,0.73,2.23,3.65,1.77,3.42,0.0,3.43,0.0,0.72,0.82,2.33,2.33,0.0,0.0,0.0,1.93,0.0,0.0,0.78,0.0,0.0,1.97,1.27,0.0,0.23,0.22,0.52,0.0,1.47,2.17,0.0,2.3,0.0,2.55,0.0,0.0,0.0,0.0,0.95,0.0,1.93,2.38,0.0],"docking_sample":[{"topic":"docking","slot":1,"time":"12:15","vid":"T24","bay":1,"plug_min":6.4,"waited_h":0.0},{"topic":"docking","slot":5,"time":"13:15","vid":"T03","bay":2,"plug_min":4.8,"waited_h":0.0},{"topic":"docking","slot":5,"time":"13:15","vid":"T21","bay":3,"plug_min":5.1,"waited_h":0.0},{"topic":"docking","slot":6,"time":"13:30","vid":"T45","bay":1,"plug_min":9.5,"waited_h":0.0},{"topic":"docking","slot":9,"time":"14:15","vid":"T22","bay":4,"plug_min":6.6,"waited_h":0.0}],"targets":{"e_transit":[0.707,0.931,0.42,0.937,0.732,0.828,0.601,0.697,0.68,0.711,0.714,0.931,0.948,0.611,0.929,0.948,0.918,0.928,0.925,0.61,0.538,0.872,0.932,0.391,0.818,0.929,0.625,0.882],"vnr_electric":[0.747,0.655,0.637,0.94,0.805,0.74,0.893,0.936,0.775,0.717,0.698,0.558,0.713,0.658],"eactros_600":[0.809,0.877,0.783,0.921,0.925,0.946,0.631,0.605]}};
+const $ = (id) => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+const fmt = (x, d = 0) => Number(x).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+const POL = ['fcfs', 'edf', 'smart', 'ideal'];
+const PNAME = { fcfs: 'First come, first served', edf: 'Earliest departure first', smart: 'Smart scheduler', ideal: 'Ideal (bound)' };
+const PCOL = { fcfs: 'var(--c-fcfs)', edf: 'var(--c-edf)', smart: 'var(--c-smart)', ideal: 'var(--c-ideal)' };
+const CLK = D.clocks;
+const mean = (p, k) => D.bench[p][k][0];
+
+// ---------- shared SVG helpers
+const T = (x, y, s, o = {}) => `<text x="${x}" y="${y}" text-anchor="${o.a || 'start'}" class="${o.c || ''}" ${o.f ? `style="fill:${o.f}"` : ''}>${s}</text>`;
+const R = (x, y, w, h, fill, extra = '') => `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(w, 0).toFixed(1)}" height="${Math.max(h, 0).toFixed(1)}" style="fill:${fill}" ${extra}/>`;
+const L = (x1, y1, x2, y2, o = {}) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" style="stroke:${o.s || 'var(--line)'};stroke-width:${o.w || 1};${o.d ? 'stroke-dasharray:' + o.d : ''}"/>`;
+const PATH = (pts, o = {}) => `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}${o.close ? ' Z' : ''}" style="fill:${o.fill || 'none'};stroke:${o.s || 'none'};stroke-width:${o.w || 1.8};${o.d ? 'stroke-dasharray:' + o.d : ''}${o.op ? ';opacity:' + o.op : ''}"/>`;
+const hrs = [0, 12, 24, 36, 48, 60, 72, 84, 95];
+
+// ---------- KPIs
+(() => {
+  const s = D.bench.smart, f = D.bench.fcfs;
+  const k = [
+    [fmt((1 - s.total_cost[0] / f.total_cost[0]) * 100) + '%', 'lower daily cost than first come, first served'],
+    [fmt((1 - s.peak_kw[0] / f.peak_kw[0]) * 100) + '%', 'lower peak grid demand'],
+    ['50 trucks · 11 bays', 'three model pools, plug-in and unplug delays'],
+    [fmt(s.missed[0] * D.n_bench / D.n_bench, 2) + ' / day', 'missed departures, 8 days averaged']
+  ];
+  $('kpis').innerHTML = k.map(([n, l]) => `<div class="card kpi"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+  $('calvals').textContent = Object.entries(D.sens).map(([m, r]) => ({ e_transit: 'E-Transit', vnr_electric: 'VNR Electric', eactros_600: 'eActros 600' }[m]) + ' ' + r.cal.toFixed(2)).join(', ');
+})();
+
+// ---------- sensitivity tables
+(() => {
+  const names = { e_transit: 'E-Transit', vnr_electric: 'VNR Electric', eactros_600: 'eActros 600' };
+  const groups = [
+    ['Cargo (15 °C, 3 m/km ascent)', [['pay0', 'Empty'], ['pay50', '50 % cargo'], ['pay100', 'Full cargo']]],
+    ['Temperature (50 % cargo, 3 m/km ascent)', [['T-10', '−10 °C'], ['T0', '0 °C'], ['T15', '15 °C'], ['T30', '30 °C'], ['T40', '40 °C']]],
+    ['Terrain (50 % cargo, 15 °C)', [['el0', '0 m/km'], ['el3', '3 m/km'], ['el6', '6 m/km'], ['el10', '10 m/km']]]
+  ];
+  $('sens').outerHTML = groups.map(([title, cols]) => `<div class="tbl"><table><thead><tr><th>${title}</th>${cols.map((c) => `<th class="num">${c[1]}</th>`).join('')}</tr></thead><tbody>` +
+    Object.entries(D.sens).map(([k, r]) => `<tr><td>${names[k]}</td>${cols.map((c) => `<td class="num">${r[c[0]].toFixed(2)}</td>`).join('')}</tr>`).join('') + '</tbody></table></div>').join('');
+})();
+
+// ---------- energy breakdown (example truck)
+(() => {
+  const e = D.example, q = e.req;
+  const parts = [['Rolling', q.rolling, 'var(--accent)'], ['Aerodynamic', q.aero, 'var(--c-edf)'], ['Stop-go', q.stop_go, 'var(--slate)'], ['Climb', q.climb, 'var(--c-fcfs)'], ['Aux and HVAC', q.aux, 'var(--solar)'], ['Safety margin', q.margin, 'var(--warn-fill)'], ['Reserve', q.reserve, 'var(--good-fill)']];
+  const W = 820, x0 = 40, sc = W / q.required;
+  let x = x0, s = '';
+  for (const [n, v, c] of parts) {
+    const w = v * sc;
+    s += R(x, 70, w, 54, c, 'rx="2"');
+    if (w > 34) s += T(x + w / 2, 102, fmt(v), { a: 'middle', c: 'b', f: '#0F1B2D' });
+    s += T(x + w / 2, 62 - (parts.indexOf(parts.find((p) => p[0] === n)) % 2) * 14, n, { a: 'middle', c: 'm mono' });
+    x += w;
+  }
+  s += L(x0, 140, x0 + W, 140, { s: 'var(--fg)' }) + T(x0, 162, '0 kWh', { c: 'mono m' }) + T(x0 + W, 162, fmt(q.required) + ' kWh required', { a: 'end', c: 'b' });
+  s += T(x0, 196, `Trip alone: ${fmt(q.total)} kWh (${q.kwh_per_km.toFixed(2)} kWh/km). With margin ${fmt(q.margin)} and reserve ${fmt(q.reserve)}.`, { c: 'm' });
+  s += T(x0, 216, `Target ${(e.target * 100).toFixed(0)} % of reported usable ${fmt(e.cap_plan)} kWh (true usable ${fmt(e.cap_true)} kWh).`, { c: 'm' });
+  $('fig-breakdown').innerHTML = s;
+  $('cap-breakdown').innerHTML = `<b>Figure.</b> Where the energy goes for ${e.vid}, a ${e.model} on a ${e.route_km} km round trip with ${fmt(e.payload_kg)} kg of cargo, ${e.elev} m of climb per km, at 15 °C. Rolling resistance and climbing dominate because the cargo is heavy.`;
+})();
+
+// ---------- taper and tier cost
+(() => {
+  let s = '', ox = 50, oy = 210, w = 340, h = 170;
+  s += T(ox, 22, 'Allowed power vs state of charge', { c: 'b' });
+  for (let i = 0; i <= 4; i++) { const y = oy - (i / 4) * h; s += L(ox, y, ox + w, y) + T(ox - 8, y + 4, (i * 25) + '%', { a: 'end', c: 'mono m' }); }
+  for (let i = 0; i <= 5; i++) { const x = ox + (i / 5) * w; s += T(x, oy + 18, (i * 20) + '%', { a: 'middle', c: 'mono m' }); }
+  const pts = []; for (let i = 0; i <= 100; i++) { const soc = i / 100; const f = soc <= .8 ? 1 : Math.max(.3, .3 + 3.5 * (1 - soc)); pts.push([ox + soc * w, oy - f * h * 0.99]); }
+  s += PATH(pts, { s: 'var(--accent)', w: 2.4 });
+  s += T(ox + w / 2, oy + 38, 'state of charge', { a: 'middle', c: 'm' });
+  const bx = 520, bw = 340;
+  s += T(bx, 22, 'Health cost by charge rate', { c: 'b' });
+  const tiers = [[0, .15, .002], [.15, .35, .010], [.35, 1, .035]];
+  for (let i = 0; i <= 3; i++) { const y = oy - (i / 3) * h; s += L(bx, y, bx + bw, y) + T(bx - 8, y + 4, '$' + (i * 0.012).toFixed(3), { a: 'end', c: 'mono m' }); }
+  tiers.forEach(([a, b, c]) => { const x1 = bx + a * bw, x2 = bx + b * bw, hh = (c / 0.036) * h; s += R(x1, oy - hh, x2 - x1 - 2, hh, 'color-mix(in srgb, var(--warn-fill) 70%, var(--surface))'); s += T((x1 + x2) / 2, oy - hh - 6, '$' + c.toFixed(3), { a: 'middle', c: 'mono b' }); });
+  [[0, '0'], [.15, '0.15C'], [.35, '0.35C'], [1, '1C']].forEach(([a, t]) => s += T(bx + a * bw, oy + 18, t, { a: a === 1 ? 'end' : a === 0 ? 'start' : 'middle', c: 'mono m' }));
+  s += T(bx + bw / 2, oy + 38, 'charge rate (C) · $ per kWh charged', { a: 'middle', c: 'm' });
+  $('fig-taper').innerHTML = s;
+})();
+
+// ---------- cost chart
+(() => {
+  const x0 = 210, W = 640, max = 2000, sc = W / max;
+  let s = '';
+  for (let i = 0; i <= 4; i++) { const x = x0 + (i * 500) * sc; s += L(x, 10, x, 200) + T(x, 218, '$' + fmt(i * 500), { a: 'middle', c: 'mono m' }); }
+  POL.forEach((p, i) => {
+    const y = 24 + i * 44, e = mean(p, 'energy_cost'), d = mean(p, 'demand_cost'), h = mean(p, 'health_cost');
+    s += T(x0 - 12, y + 20, PNAME[p], { a: 'end', c: 'b' });
+    s += R(x0, y, e * sc, 30, 'var(--accent)') + R(x0 + e * sc, y, d * sc, 30, 'var(--warn-fill)') + R(x0 + (e + d) * sc, y, h * sc, 30, 'var(--c-smart)');
+    s += T(x0 + (e + d + h) * sc + 8, y + 20, '$' + fmt(e + d + h), { c: 'mono b' });
+  });
+  $('fig-cost').innerHTML = s;
+})();
+
+// ---------- results tables
+(() => {
+  const rows = [['total_cost', 'Total cost per day', (v) => '$' + fmt(v)], ['energy_cost', 'Energy', (v) => '$' + fmt(v)], ['demand_cost', 'Demand charge', (v) => '$' + fmt(v)], ['health_cost', 'Battery wear', (v) => '$' + fmt(v)], ['peak_kw', 'Peak grid import (kW)', (v) => fmt(v)], ['missed', 'Missed departures per day', (v) => fmt(v, 2)], ['mean_wait_h', 'Mean wait for a bay (h)', (v) => fmt(v, 1)], ['max_wait_h', 'Longest wait (h)', (v) => fmt(v, 1)], ['bay_utilisation', 'Bay utilisation', (v) => fmt(v * 100) + '%'], ['solar_self_consumption', 'Solar used on site', (v) => fmt(v * 100) + '%'], ['overcharge_kwh', 'Energy beyond requirement (kWh)', (v) => fmt(v, 1)], ['avg_c_rate', 'Average charge rate (C)', (v) => fmt(v, 2)], ['hi_soc_dwell_h', 'Truck-hours above 80 % charge', (v) => fmt(v)], ['fast_charge_share', 'Energy charged above 0.15 C', (v) => fmt(v * 100) + '%'], ['plans', 'Planner runs per day', (v) => fmt(v)], ['plan_time_s', 'Total solver time per day (s)', (v) => fmt(v, 1)]];
+  const build = (src) => '<thead><tr><th>Metric</th>' + POL.map((p) => `<th class="num">${PNAME[p]}</th>`).join('') + '</tr></thead><tbody>' + rows.map(([k, n, f]) => `<tr><td>${n}</td>` + POL.map((p) => `<td class="num">${f(src[p][k][0])}${src[p][k][1] > 0 && k !== 'plans' ? ' <span style="color:var(--muted)">±' + f(src[p][k][1]).replace('$', '') + '</span>' : ''}</td>`).join('') + '</tr>').join('') + '</tbody>';
+  $('res-table').innerHTML = build(D.bench);
+  $('stress-table').innerHTML = build(D.stress);
+})();
+
+// ---------- load chart
+(() => {
+  const x0 = 56, W = 820, y0 = 250, H = 210, max = 1000, X = (i) => x0 + (i / 95) * W, Y = (v) => y0 - Math.min(v, max) / max * H;
+  let s = '';
+  for (let i = 0; i <= 4; i++) { const v = i * 250, y = Y(v); s += L(x0, y, x0 + W, y) + T(x0 - 8, y + 4, fmt(v), { a: 'end', c: 'mono m' }); }
+  s += T(10, 14, 'kW', { c: 'mono m' });
+  hrs.filter((_, i) => i % 2 === 0).forEach((i) => s += T(X(i), y0 + 40, CLK[i], { a: 'middle', c: 'mono m' }));
+  s += PATH([[X(0), y0], ...D.solar.map((v, i) => [X(i), Y(v)]), [X(95), y0]], { fill: 'var(--solar)', op: .55, close: true });
+  const pmin = Math.min(...D.price), pmax = Math.max(...D.price);
+  D.price.forEach((p, i) => s += R(X(i) - 4.3, y0 + 8, 8.7, 12, 'var(--fg)', `opacity="${(0.1 + 0.8 * (p - pmin) / (pmax - pmin)).toFixed(2)}"`));
+  s += T(x0 - 8, y0 + 18, 'price', { a: 'end', c: 'mono m' });
+  [['ideal', '4 3'], ['fcfs', ''], ['smart', '']].forEach(([p, d]) => s += PATH(D['load_' + p].map((v, i) => [X(i), Y(v)]), { s: PCOL[p], w: p === 'smart' ? 2.6 : 2, d }));
+  $('fig-load').innerHTML = s;
+})();
+
+// ---------- gantt
+(() => {
+  const keys = ['e_transit', 'vnr_electric', 'eactros_600'], nb = { e_transit: 6, vnr_electric: 3, eactros_600: 2 };
+  const colr = { e_transit: 'var(--c-fcfs)', vnr_electric: 'var(--c-edf)', eactros_600: 'var(--c-smart)' }, nm = { e_transit: 'Van', vnr_electric: 'Regional', eactros_600: 'Long-haul' };
+  const x0 = 92, W = 790, rowH = 28, rows = []; keys.forEach((k) => { for (let b = 0; b < nb[k]; b++) rows.push([k, b]); });
+  const X = (t) => x0 + (t / 96) * W; let s = '';
+  [0, 12, 24, 36, 48, 60, 72, 84, 96].forEach((t) => { s += L(X(t), 10, X(t), 10 + rows.length * rowH) + T(X(t), 10 + rows.length * rowH + 18, CLK[Math.min(t, 95)], { a: 'middle', c: 'mono m' }); });
+  rows.forEach(([k, b], i) => { s += T(x0 - 8, 10 + i * rowH + 18, `${nm[k]} ${b + 1}`, { a: 'end', c: 'mono m' }); s += L(x0, 10 + (i + 1) * rowH, x0 + W, 10 + (i + 1) * rowH); });
+  D.gantt.forEach(([k, b, vid, a, e]) => { const i = rows.findIndex((r) => r[0] === k && r[1] === b), w = X(e) - X(a); s += R(X(a) + 1, 10 + i * rowH + 3, w - 2, rowH - 6, colr[k], 'rx="3"'); if (w > 26) s += T(X(a) + w / 2, 10 + i * rowH + 19, vid, { a: 'middle', c: 'mono', f: '#0F1B2D' }); });
+  $('fig-gantt').innerHTML = s;
+})();
+
+// ---------- queue charts
+(() => {
+  const names = { e_transit: 'Van pool', vnr_electric: 'Regional pool', eactros_600: 'Long-haul pool' };
+  $('queues').innerHTML = Object.keys(names).map((k) => {
+    const a = D.queue_fcfs[k], b = D.queue_smart[k], mx = Math.max(2, ...a, ...b), x0 = 34, W = 380, H = 110, y0 = 130, X = (i) => x0 + (i / 95) * W, Y = (v) => y0 - (v / mx) * H;
+    const step = (arr) => { const p = []; arr.forEach((v, i) => { p.push([X(i), Y(v)]); p.push([X(i + 1 > 95 ? 95 : i + 1), Y(v)]); }); return p; };
+    let s = T(x0, 12, names[k], { c: 'b' }) + L(x0, y0, x0 + W, y0);
+    for (let i = 0; i <= mx; i += Math.max(1, Math.ceil(mx / 4))) s += L(x0, Y(i), x0 + W, Y(i)) + T(x0 - 6, Y(i) + 4, i, { a: 'end', c: 'mono m' });
+    [0, 24, 48, 72, 95].forEach((i) => s += T(X(i), y0 + 16, CLK[i], { a: 'middle', c: 'mono m' }));
+    s += PATH(step(a), { s: 'var(--c-fcfs)', w: 2 }) + PATH(step(b), { s: 'var(--c-smart)', w: 2.2 });
+    return `<svg viewBox="0 0 430 150" role="img" aria-label="${names[k]} queue length" style="min-width:0">${s}</svg>`;
+  }).join('');
+})();
+
+// ---------- waiting histogram
+(() => {
+  const bins = [0, 1, 2, 3, 4, 6, 8, 10, 12, 15], cnt = (arr) => bins.slice(0, -1).map((lo, i) => arr.filter((v) => v >= lo && v < bins[i + 1]).length);
+  const a = cnt(D.wait_fcfs), b = cnt(D.wait_smart), mx = Math.max(...a, ...b) + 2, x0 = 50, W = 810, H = 170, y0 = 200, bw = W / (bins.length - 1);
+  let s = '';
+  for (let i = 0; i <= 4; i++) { const v = Math.round(i * mx / 4), y = y0 - (v / mx) * H; s += L(x0, y, x0 + W, y) + T(x0 - 8, y + 4, v, { a: 'end', c: 'mono m' }); }
+  a.forEach((v, i) => { const x = x0 + i * bw; s += R(x + 6, y0 - v / mx * H, bw / 2 - 7, v / mx * H, 'var(--c-fcfs)') + R(x + bw / 2, y0 - b[i] / mx * H, bw / 2 - 7, b[i] / mx * H, 'var(--c-smart)'); s += T(x + bw / 2, y0 + 16, `${bins[i]}–${bins[i + 1]} h`, { a: 'middle', c: 'mono m' }); });
+  s += T(x0 + W / 2, y0 + 40, 'wait for a bay · number of trucks', { a: 'middle', c: 'm' });
+  $('fig-wait').innerHTML = s;
+})();
+
+// ---------- example truck
+(() => {
+  const e = D.example, x0 = 56, W = 820, X = (i) => x0 + (i / 95) * W; let s = '';
+  const y0 = 150, H = 120, Y = (v) => y0 - v * H;
+  for (let i = 0; i <= 4; i++) { const v = i / 4; s += L(x0, Y(v), x0 + W, Y(v)) + T(x0 - 8, Y(v) + 4, (v * 100) + '%', { a: 'end', c: 'mono m' }); }
+  [0, 24, 48, 72, 95].forEach((i) => s += T(X(i), y0 + 16, CLK[i], { a: 'middle', c: 'mono m' }));
+  s += L(x0, Y(e.target), x0 + W, Y(e.target), { s: 'var(--fg)', d: '5 4' }) + T(x0 + W, Y(e.target) - 6, `required ${(e.target * 100).toFixed(0)} %`, { a: 'end', c: 'mono' });
+  const line = (arr) => { const out = []; let cur = []; arr.forEach((v, i) => { if (v === null) { if (cur.length) out.push(cur); cur = []; } else cur.push([X(i), Y(v)]); }); if (cur.length) out.push(cur); return out; };
+  line(e.soc_fcfs).forEach((p) => s += PATH(p, { s: 'var(--c-fcfs)', w: 2.2 })); line(e.soc_smart).forEach((p) => s += PATH(p, { s: 'var(--c-smart)', w: 2.6 }));
+  const py = 290, ph = 70, pm = Math.max(...e.pw_fcfs, ...e.pw_smart, 1);
+  s += T(x0, py - ph - 8, 'charging power (kW)', { c: 'mono m' }) + L(x0, py, x0 + W, py);
+  e.pw_fcfs.forEach((v, i) => { if (v > 0) s += R(X(i) - 3.6, py - v / pm * ph, 3.6, v / pm * ph, 'var(--c-fcfs)'); });
+  e.pw_smart.forEach((v, i) => { if (v > 0) s += R(X(i), py - v / pm * ph, 3.6, v / pm * ph, 'var(--c-smart)'); });
+  $('fig-truck').innerHTML = s;
+  const first = (arr) => arr.findIndex((v) => v > 0.5), last = (arr) => arr.length - 1 - [...arr].reverse().findIndex((v) => v > 0.5);
+  $('cap-truck').innerHTML = `<b>Figure 12.</b> ${e.vid} (${e.model}, ${fmt(e.payload_kg)} kg cargo, true SOH ${(e.soh * 100).toFixed(0)} %, reported ${(e.soh_rep * 100).toFixed(0)} %). It arrives at ${e.arrive} with ${(e.soc_arrive * 100).toFixed(0)} % and leaves at ${e.depart}. First come, first served charges at full power from ${CLK[first(e.pw_fcfs)]}; the smart scheduler charges between ${CLK[first(e.pw_smart)]} and ${CLK[last(e.pw_smart) + 1]} at a lower rate. Both reach the required level.`;
+})();
+</script>
+</body></html>
