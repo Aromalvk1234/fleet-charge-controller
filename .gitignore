@@ -7,3 +7,8 @@ doc.pdf
 results/*
 !results/benchmark.csv
 !results/stress.csv
+docs/SUBMISSION.md
+docs/demo-deck.pptx
+docs/project-brief.pdf
+scripts/*.log
+scripts/make_pdf.py
