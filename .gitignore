@@ -12,3 +12,5 @@ docs/demo-deck.pptx
 docs/project-brief.pdf
 scripts/*.log
 scripts/make_pdf.py
+docs/devpost-images/
+video/

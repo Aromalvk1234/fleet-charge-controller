@@ -182,12 +182,12 @@ def weather(city: str) -> dict:
     if not os.getenv("TAVILY_API_KEY"):
         return info
     try:
-        res = tavily_search(f"{city} weather forecast tomorrow temperature celsius")
+        res = tavily_search(f"current temperature in {city} right now degrees celsius")
         blob = (res.get("answer") or "") + "\n" + "\n".join(x.get("content", "")[:400] for x in res.get("results", []))
         info["summary"] = (res.get("answer") or blob)[:300]
         temp = None
         if llm_available():
-            out = chat([{"role": "system", "content": 'From the text, extract the expected temperature in Celsius for tomorrow (if no forecast is given, the current temperature). Convert from Fahrenheit if needed. If NO temperature is stated, return null, never guess. Return ONLY JSON {"temp_c": number|null}.'},
+            out = chat([{"role": "system", "content": 'From the text, extract the current temperature in Celsius (or today\'s expected temperature if no current value is given). Convert from Fahrenheit if needed. If NO temperature is stated, return null, never guess. Return ONLY JSON {"temp_c": number|null}.'},
                         {"role": "user", "content": blob}])
             temp = _extract_json(out).get("temp_c")
         if temp is None or not -45 <= float(temp) <= 55:

@@ -445,7 +445,7 @@ $('#notesApply').onclick = async () => {
     const r = await api('/api/notes', { text: $('#notesText').value });
     $('#notesSrc').textContent = 'parsed by ' + r.source;
     $('#notesOut').innerHTML = r.lines.length ? '<ul>' + r.lines.map((l) => `<li>${esc(l)}</li>`).join('') + '</ul>' : '<div class="small">No actions recognised.</div>';
-    if (r.lines.length) { closeDrawers(); await runSim('Re-planning with your notes'); }
+    if (r.lines.length) { await new Promise((ok) => setTimeout(ok, 4000)); closeDrawers(); await runSim('Re-planning with your notes'); }
   } catch (e) { toast('Could not apply notes: ' + e.message); }
 };
 $('#weatherBtn').onclick = async () => {
