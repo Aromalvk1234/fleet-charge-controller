@@ -24,6 +24,7 @@ import mimetypes
 import os
 import threading
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -32,7 +33,7 @@ import numpy as np
 
 from fleetcharge import agent
 from fleetcharge.scenario import MAX_PLANNED_TARGET, make_scenario, slot_to_clock
-from fleetcharge.yard import LABELS, POLICIES, STATE_NAMES, run
+from fleetcharge.yard import LABELS, POLICIES, STATE_NAMES, run, run_job
 
 WEB = Path(__file__).parent / "web"
 LOCK = threading.Lock()
@@ -49,6 +50,7 @@ class App:
         self.log: list[str] = []
         self.weather: dict | None = None
         self.version = 0
+        self.pool: ProcessPoolExecutor | None = None
 
     def start(self, seed: int | None = None, temp: float | None = None, fault: float | None = None) -> None:
         with LOCK:
@@ -67,12 +69,36 @@ class App:
             self.progress = {"done": 0, "total": len(POLICIES), "label": "starting"}
         threading.Thread(target=self._run, daemon=True).start()
 
+    # The four policies are independent, so they run in separate processes. The smart
+    # scheduler (the slowest, it solves an LP every re-plan) is submitted first.
+    ORDER = ("smart", "ideal", "fcfs", "edf")
+
+    def _simulate_parallel(self) -> dict:
+        if self.pool is None:
+            self.pool = ProcessPoolExecutor(max_workers=min(len(POLICIES), os.cpu_count() or 1))
+        jobs = [(self.scn, p, self.fault, self.seed) for p in self.ORDER if p in POLICIES]
+        futs = [self.pool.submit(run_job, j) for j in jobs]
+        res = {}
+        for fut in as_completed(futs):
+            p, r = fut.result()
+            res[p] = r
+            self.progress = {"done": len(res), "total": len(POLICIES), "label": LABELS[p]}
+        return {p: res[p] for p in POLICIES}
+
+    def _simulate_serial(self) -> dict:
+        res = {}
+        for i, p in enumerate(POLICIES):
+            self.progress = {"done": i, "total": len(POLICIES), "label": LABELS[p]}
+            res[p] = run(self.scn, p, fault_rate=self.fault, seed=self.seed)
+        return res
+
     def _run(self) -> None:
         try:
-            res = {}
-            for i, p in enumerate(POLICIES):
-                self.progress = {"done": i, "total": len(POLICIES), "label": LABELS[p]}
-                res[p] = run(self.scn, p, fault_rate=self.fault, seed=self.seed)
+            try:
+                res = self._simulate_parallel()
+            except Exception:  # pool unavailable or a worker died: fall back to one process
+                self.pool = None
+                res = self._simulate_serial()
             self.results = res
             self.version += 1
             self.progress = {"done": len(POLICIES), "total": len(POLICIES), "label": "done"}

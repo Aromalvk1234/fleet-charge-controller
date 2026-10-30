@@ -421,5 +421,11 @@ def run(scn: Scenario, policy: str, replan_slots: int = 4, fault_rate: float = 0
                      plan_runs, plan_time, order)
 
 
+def run_job(job: tuple) -> tuple[str, SimResult]:
+    """Picklable worker entry point so the policies can run in separate processes."""
+    scn, policy, fault_rate, seed = job
+    return policy, run(scn, policy, fault_rate=fault_rate, seed=seed)
+
+
 def compare(scn: Scenario, policies=POLICIES, **kw) -> dict[str, SimResult]:
     return {p: run(scn, p, **kw) for p in policies}
