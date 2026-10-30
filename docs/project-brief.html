@@ -147,7 +147,7 @@ hr{border:0;border-top:1px solid var(--line);margin:40px 0}
 
 <main>
 <header id="summary">
-  <div class="pill">Nebius x NVIDIA Global AI Hackathon · Physical AI track · simulated depot</div>
+  <div class="pill">Nebius x NVIDIA Global AI Hackathon · Best Apps and Agents track · simulated depot</div>
   <h1 style="margin-top:14px">Fleet Charge Controller</h1>
   <p class="lede">A scheduler and edge-control system that charges a 50-truck electric depot through 11 shared bays. Each truck gets exactly the energy its trip needs, at the gentlest and cheapest rate that still gets it to the gate before dispatch.</p>
 
@@ -261,8 +261,8 @@ hr{border:0;border-top:1px solid var(--line);margin:40px 0}
 </svg></div>
 <figcaption><b>Figure 1.</b> The controller. Optimisation (green) owns bay assignment and power; Nemotron (blue) owns language; edge agents (amber) own the last-minute safety limits.</figcaption>
 </figure>
-<h3>Why this fits the Physical AI track</h3>
-<p>The track asks for agents that sense and act in the physical world, with serverless jobs used to evaluate policies at scale. This project has a sense-decide-act loop around simulated hardware: telemetry in (SOC, SOH, temperature, plug state), setpoints out (kW per charger, bay assignments), local safety limits at the edge, and a large benchmark of policies run as a batch job. There is no physical hardware yet, so the video will show the key modules in action, as the rules allow.</p>
+<h3>Why this fits the Best Apps and Agents track</h3>
+<p>It is an app a depot manager would actually use: a live yard view, a schedule, a policy comparison and a dispatcher panel. Nemotron on Nebius Token Factory handles the language work (parsing dispatcher notes, reading live temperature found by Tavily, explaining decisions), while a deterministic optimiser makes the charging decisions so every plan stays safe and checkable.</p>
 
 <!-- 4 -->
 <div class="sec-tag">4 · How much energy</div>

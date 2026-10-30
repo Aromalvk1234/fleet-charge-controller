@@ -2,7 +2,7 @@
 
 A scheduler and edge-control system for an electric truck depot with **fewer charging bays than trucks**. It decides which truck takes which bay and when, then charges each truck at the cheapest and gentlest rate that still gets it to the gate on time with exactly the energy its trip needs.
 
-Built for the **Nebius x NVIDIA Global AI Hackathon**, Physical AI track (simulated depot). A long technical brief with the math, diagrams and results is in [docs/project-brief.html](docs/project-brief.html).
+Built for the **Nebius x NVIDIA Global AI Hackathon**, Best Apps and Agents track. A long technical brief with the math, diagrams and results is in [docs/project-brief.html](docs/project-brief.html).
 
 ## What it does
 
@@ -42,6 +42,8 @@ Language models never choose a charge level or a bay. Optimisation is determinis
 Override with `NEMOTRON_FAST_MODEL` and `NEMOTRON_STRONG_MODEL`. Every model and Tavily call has an offline fallback.
 
 ## Run
+
+Test build for judges: clone, install, run. It works without any keys (offline fallbacks); add the two keys to see live Nemotron and Tavily.
 
 ```bash
 pip install -r requirements.txt
