@@ -75,7 +75,7 @@ On six cold days (-10 °C) with charger faults: smart $1,305 against $1,937 for 
 
 ## Nebius / NVIDIA usage
 - **Nebius Token Factory**: runtime Nemotron calls for note parsing, temperature extraction and explanations.
-- **NVIDIA Nemotron**: Nano (fast calls) and Super (explanations); Ultra is available on the account for harder requests.
+- **NVIDIA Nemotron**: Nano (notes, temperature) and Super (explanations). Nebius retires both on 9 Nov 2026, so each role has a fallback chain that is tried in order: fast `NVIDIA-Nemotron-3-Nano-30B-A3B` -> `Nemotron-3.5-Super-VL`; strong `nemotron-3-super-120b-a12b` -> `Nemotron-3-Ultra-550b-a55b`. If every model fails, the app uses its offline fallbacks. Override with comma-separated lists, e.g. `NEMOTRON_FAST_MODEL=modelA,modelB` and `NEMOTRON_STRONG_MODEL=modelC,modelD`. The model that answered is shown in the UI.
 - **Tavily**: live weather lookup that feeds the energy model.
 - **Nebius Serverless Jobs**: the benchmark script and Dockerfile are ready; a large cloud run has not been done yet.
 

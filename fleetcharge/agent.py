@@ -27,8 +27,13 @@ def _feasibility_note(v) -> str:
     return ""
 
 TOKEN_FACTORY_URL = os.getenv("TOKEN_FACTORY_BASE_URL", "https://api.tokenfactory.nebius.com/v1")
-FAST_MODEL = os.getenv("NEMOTRON_FAST_MODEL", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B")
-STRONG_MODEL = os.getenv("NEMOTRON_STRONG_MODEL", "nvidia/nemotron-3-super-120b-a12b")
+# Each role is a comma-separated chain: the first model is tried, the next ones are fallbacks
+# (Nano and Super retire from Token Factory on 2026-11-09).
+FAST_CHAIN = [m.strip() for m in os.getenv(
+    "NEMOTRON_FAST_MODEL", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B,nvidia/Nemotron-3.5-Super-VL").split(",") if m.strip()]
+STRONG_CHAIN = [m.strip() for m in os.getenv(
+    "NEMOTRON_STRONG_MODEL", "nvidia/nemotron-3-super-120b-a12b,nvidia/Nemotron-3-Ultra-550b-a55b").split(",") if m.strip()]
+FAST_MODEL, STRONG_MODEL = FAST_CHAIN[0], STRONG_CHAIN[0]
 TAVILY_URL = "https://api.tavily.com/search"
 
 ACTIONS = {"set_route", "delay_departure", "set_departure", "charger_fault",
@@ -122,16 +127,31 @@ def _regex_parse(text: str, s: Scenario) -> list[Action]:
     return _validate([a.__dict__ for a in acts], s)
 
 
+def chat_chain(messages: list[dict], models: list[str], **kw) -> tuple[str, str]:
+    """Try each model in order; returns (text, model that answered). Raises the last error."""
+    err: Exception = RuntimeError("no models configured")
+    for m in models:
+        try:
+            return chat(messages, model=m, **kw), m
+        except Exception as e:
+            err = e
+    raise err
+
+
 def parse_instructions(text: str, s: Scenario) -> tuple[list[Action], str]:
     """Returns (actions, source) where source is the model name or 'offline-regex'."""
     if llm_available():
         try:
-            raw = chat([
-                {"role": "system", "content": "You convert fleet dispatcher notes into structured actions. " + ACTION_SCHEMA},
-                {"role": "user", "content": text}], model=FAST_MODEL)
-            acts = _validate(_extract_json(raw).get("actions", []), s)
-            if acts:
-                return acts, FAST_MODEL
+            for m in FAST_CHAIN:
+                try:
+                    raw = chat([
+                        {"role": "system", "content": "You convert fleet dispatcher notes into structured actions. " + ACTION_SCHEMA},
+                        {"role": "user", "content": text}], model=m)
+                    acts = _validate(_extract_json(raw).get("actions", []), s)
+                    if acts:
+                        return acts, m
+                except Exception:
+                    continue
         except Exception:
             pass
     return _regex_parse(text, s), "offline-regex"
@@ -187,8 +207,8 @@ def weather(city: str) -> dict:
         info["summary"] = (res.get("answer") or blob)[:300]
         temp = None
         if llm_available():
-            out = chat([{"role": "system", "content": 'From the text, extract the current temperature in Celsius (or today\'s expected temperature if no current value is given). Convert from Fahrenheit if needed. If NO temperature is stated, return null, never guess. Return ONLY JSON {"temp_c": number|null}.'},
-                        {"role": "user", "content": blob}])
+            out, _ = chat_chain([{"role": "system", "content": 'From the text, extract the current temperature in Celsius (or today\'s expected temperature if no current value is given). Convert from Fahrenheit if needed. If NO temperature is stated, return null, never guess. Return ONLY JSON {"temp_c": number|null}.'},
+                        {"role": "user", "content": blob}], FAST_CHAIN)
             temp = _extract_json(out).get("temp_c")
         if temp is None or not -45 <= float(temp) <= 55:
             temp = None
@@ -208,11 +228,11 @@ def explain(question: str, facts: dict) -> tuple[str, str]:
     """Answer using ONLY the supplied scheduler facts. Returns (answer, source)."""
     if llm_available():
         try:
-            ans = chat([
+            ans, used = chat_chain([
                 {"role": "system", "content": "You are the fleet charging scheduler's explainer. Answer in 3-5 sentences using ONLY the JSON facts. If a fact is missing, say so. Mention numbers. Explain the energy requirement (distance, cargo, terrain, temperature, margin, reserve), WHY the truck waited and WHEN it charged (price, solar, deadline, bay availability), and whether it charged gently to protect the battery. Required energy already INCLUDES margin and reserve."},
                 {"role": "user", "content": f"Facts:\n{json.dumps(facts, default=str)}\n\nQuestion: {question}"}],
-                model=STRONG_MODEL, max_tokens=2500)
-            return ans, STRONG_MODEL
+                STRONG_CHAIN, max_tokens=2500)
+            return ans, used
         except Exception:
             pass
     f = facts
